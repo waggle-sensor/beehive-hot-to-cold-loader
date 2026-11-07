@@ -1,0 +1,7 @@
+bin/
+state/
+*.test
+__pycache__/
+*.pyc
+.DS_Store
+*.db
