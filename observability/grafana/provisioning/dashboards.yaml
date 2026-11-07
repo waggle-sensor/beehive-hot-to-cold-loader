@@ -1,0 +1,11 @@
+apiVersion: 1
+providers:
+  - name: beehive-hot-to-cold-loader
+    orgId: 1
+    folder: Beehive
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards/beehive-hot-to-cold-loader

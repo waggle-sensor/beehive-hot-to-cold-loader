@@ -1,0 +1,8 @@
+# Merge this job into the collector configuration. Metrics require no authentication.
+scrape_configs:
+  - job_name: beehive-hot-to-cold-loader
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['beehive-hot-to-cold-loader:10001']

@@ -1,0 +1,52 @@
+rule_files:
+  - alerts.yaml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{job="beehive-hot-to-cold-loader",instance="down"}'
+        values: '0x10'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: ArchiveTargetUnavailable
+        exp_alerts:
+          - exp_labels:
+              job: beehive-hot-to-cold-loader
+              instance: down
+              severity: critical
+            exp_annotations:
+              summary: 'Archival target down is unavailable'
+  - interval: 1m
+    input_series:
+      - series: 'hot_to_cold_late_oldest_age_seconds{job="beehive-hot-to-cold-loader",instance="paused"}'
+        values: '7200x30'
+      - series: 'hot_to_cold_coordinate_only{job="beehive-hot-to-cold-loader",instance="paused"}'
+        values: '1x30'
+      - series: 'hot_to_cold_deletions_pending{job="beehive-hot-to-cold-loader",instance="paused"}'
+        values: '0+1x90'
+      - series: 'hot_to_cold_deletion_enabled{job="beehive-hot-to-cold-loader",instance="paused"}'
+        values: '0x90'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ArchiveLateBacklogOld
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: ArchiveDeletionBacklogGrowing
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'hot_to_cold_jobs_with_errors{job="beehive-hot-to-cold-loader",instance="worker",mode="archive",state="EXPORTING"}'
+        values: '1x20'
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: ArchiveJobErrorPersists
+        exp_alerts:
+          - exp_labels:
+              job: beehive-hot-to-cold-loader
+              instance: worker
+              mode: archive
+              state: EXPORTING
+              severity: warning
+            exp_annotations:
+              summary: 'Unresolved archive error in EXPORTING on worker'
+              description: 'Use authenticated status and service logs for job details. Retry errors are not terminal job failures.'

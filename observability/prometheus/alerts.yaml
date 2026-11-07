@@ -1,0 +1,79 @@
+# Starting thresholds, to be tuned using the deployment's measured stage budgets.
+# Target selection assumes the job name in scrape.yaml.
+groups:
+  - name: beehive-hot-to-cold-loader
+    rules:
+      - alert: ArchiveTargetUnavailable
+        expr: up{job="beehive-hot-to-cold-loader"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Archival target {{ $labels.instance }} is unavailable'
+      - alert: ArchiveJobErrorPersists
+        expr: hot_to_cold_jobs_with_errors{job="beehive-hot-to-cold-loader"} > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Unresolved {{ $labels.mode }} error in {{ $labels.state }} on {{ $labels.instance }}'
+          description: 'Use authenticated status and service logs for job details. Retry errors are not terminal job failures.'
+      - alert: ArchiveLateBacklogOld
+        expr: (hot_to_cold_late_oldest_age_seconds{job="beehive-hot-to-cold-loader"} > 3600) and on(job,instance) (hot_to_cold_coordinate_only == 0)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Late-data backlog exceeds one hour on {{ $labels.instance }}'
+      - alert: ArchiveRoutingLagHigh
+        expr: (hot_to_cold_lag_seconds{job="beehive-hot-to-cold-loader"} > 172800) and on(job,instance) (hot_to_cold_coordinate_only == 0)
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Routing frontier is over two days behind hot retention on {{ $labels.instance }}'
+      - alert: ArchiveStageLongRunning
+        expr: ((time() - hot_to_cold_step_started_timestamp_seconds{job="beehive-hot-to-cold-loader"}) > 21600) and (hot_to_cold_step_in_progress == 1)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $labels.stage }} exceeds six hours on {{ $labels.instance }}'
+          description: 'Tune per-stage budgets from measured server runs. Scheduler heartbeat alone can pause during synchronous work.'
+      - alert: ArchiveNewQuarantineRecords
+        expr: delta(hot_to_cold_quarantined{job="beehive-hot-to-cold-loader"}[15m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Quarantine population increased on {{ $labels.instance }}'
+      - alert: ArchiveSchedulerStalled
+        expr: ((time() - hot_to_cold_scheduler_last_iteration_timestamp_seconds{job="beehive-hot-to-cold-loader"}) > 900) and on(job,instance) (sum by(job,instance) (hot_to_cold_step_in_progress) == 0) and on(job,instance) (hot_to_cold_coordinate_only == 0)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Idle archival scheduler has not iterated for 15 minutes on {{ $labels.instance }}'
+      - alert: ArchiveDeletionBacklogGrowing
+        expr: (delta(hot_to_cold_deletions_pending{job="beehive-hot-to-cold-loader"}[1h]) > 0) and on(job,instance) (hot_to_cold_deletion_enabled == 1) and on(job,instance) (hot_to_cold_coordinate_only == 0)
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Hot deletion backlog is growing on {{ $labels.instance }}'
+          description: 'Inspect reader waits versus failed deletion attempts. Reader expiry does not prove remote work stopped.'
+      - alert: ArchiveProfileMaintenanceError
+        expr: increase(hot_to_cold_profile_cleanup_errors_total{job="beehive-hot-to-cold-loader"}[1h]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Performance profile maintenance failed on {{ $labels.instance }}'
+      - alert: ArchiveAPIReadRenewalErrors
+        expr: sum by(job,instance) (rate(hot_to_cold_read_renewals_total{job="beehive-data-api",outcome="error"}[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'API reader renewals are failing on {{ $labels.instance }}'
+          description: 'Investigate API/coordinator connectivity before confirmed leases expire. Canceled client requests are excluded.'
