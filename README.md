@@ -5,7 +5,7 @@ Beehive's archival service moves completed UTC days from InfluxDB into an Iceber
 The service coordinates with [beehive-influxdb-loader](https://github.com/waggle-sensor/beehive-influxdb-loader) for writer fencing and late measurements, and with
 [beehive-data-api](https://github.com/waggle-sensor/beehive-data-api/blob/main/docs/README.md) for pinned read views. A Go scheduler and SQLite journal manage recoverable jobs; no external queue is required. Hot retention defaults to 30 days and is configurable.
 
-## Documentation
+## Documentation 
 
 | Guide | Read this for |
 | --- | --- |
