@@ -1,0 +1,123 @@
+# Generated env files and build contexts come from run.py. No host ports,
+# existing volumes, external broker bindings, or production endpoints are used.
+services:
+  influx:
+    image: influxdb:2.7.7
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: fixture
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD:?}
+      DOCKER_INFLUXDB_INIT_ORG: waggle
+      DOCKER_INFLUXDB_INIT_BUCKET: waggle
+      DOCKER_INFLUXDB_INIT_RETENTION: 0
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN:?}
+    volumes:
+      - ${LIVE_ROOT:?}/influx:/var/lib/influxdb2
+    healthcheck:
+      test: [CMD, influx, ping]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+    mem_limit: 10g
+  broker:
+    image: rabbitmq:3.13.7-management
+    environment:
+      RABBITMQ_DEFAULT_USER: node-n1
+      RABBITMQ_DEFAULT_PASS: ${BROKER_PASSWORD:?}
+    healthcheck:
+      # ping can succeed before the AMQP listener accepts connections.
+      test: [CMD, rabbitmq-diagnostics, -q, check_port_connectivity]
+      interval: 3s
+      timeout: 10s
+      retries: 60
+      start_period: 30s
+    mem_limit: 1g
+  archiver:
+    build:
+      context: ${ARCHIVER_SOURCE:?}
+    command:
+      - --state=/state
+      - --warehouse=${WAREHOUSE:?}
+      - --archive-start=2025-03-01
+      - --archive-before=2025-03-02
+      - --influx-url=http://influx:8086
+      - --bucket=waggle
+      - --org=waggle
+      - --bucket-id=${BUCKET_ID:-not-yet-discovered}
+      - --engine-path=/influx/engine
+      - --interval=1s
+      - --late-interval=1s
+      - --duckdb-memory=512MB
+      - --duckdb-build-threads=16
+      - --duckdb-build-sort-threads=2
+      - --writers-coordinated=true
+      - --readers-coordinated=true
+      - --coordinate-only=${COORDINATE_ONLY:-true}
+      - --delete-enabled=${DELETE_ENABLED:-false}
+      - --keep-staging=true
+    environment:
+      HOT_TO_COLD_LOADER_TOKEN: ${LOADER_TOKEN:?}
+      HOT_TO_COLD_READER_TOKEN: ${READER_TOKEN:?}
+      HOT_TO_COLD_ADMIN_TOKEN: ${ADMIN_TOKEN:?}
+      INFLUX_TOKEN: ${INFLUX_TOKEN:?}
+      PELICAN_KEY_PATH: /secrets/issuer-key.pem
+    volumes:
+      - ${LIVE_ROOT:?}/coordinator:/state
+      - ${LIVE_ROOT:?}/influx:/influx:ro
+      - ${PELICAN_KEY:?}:/secrets/issuer-key.pem:ro
+    mem_limit: 2g
+    stop_grace_period: 45s
+  loader:
+    build:
+      context: ${LIVE_ROOT:?}/loader-build
+    environment:
+      RABBITMQ_HOST: broker
+      RABBITMQ_USERNAME: node-n1
+      RABBITMQ_PASSWORD: ${BROKER_PASSWORD:?}
+      RABBITMQ_EXCHANGE: archive.live
+      RABBITMQ_QUEUE: archive.live
+      INFLUXDB_URL: http://influx:8086
+      INFLUXDB_TOKEN: ${INFLUX_TOKEN:?}
+      INFLUXDB_ORG: waggle
+      INFLUXDB_BUCKET: waggle
+      HOT_TO_COLD_LOADER_URL: http://archiver:10001
+      HOT_TO_COLD_LOADER_LOADER_TOKEN: ${LOADER_TOKEN:?}
+      HOT_TO_COLD_LOADER_LOADER_OWNER: ${RUN_ID:?}-loader
+      MAX_BATCH_SIZE: 32
+      MAX_FLUSH_INTERVAL: 0.5
+      PREFETCH_COUNT: 32
+    mem_limit: 512m
+  api:
+    build:
+      context: ${API_SOURCE:?}
+    environment:
+      INFLUXDB_URL: http://influx:8086
+      INFLUXDB_TOKEN: ${INFLUX_TOKEN:?}
+      INFLUXDB_BUCKET: waggle
+      COLD_FRONTIER: dynamic
+      COLD_WAREHOUSE: ${WAREHOUSE:?}
+      HOT_TO_COLD_LOADER_URL: http://archiver:10001
+      HOT_TO_COLD_LOADER_READER_TOKEN: ${READER_TOKEN:?}
+      HOT_TO_COLD_LOADER_READER_OWNER: ${RUN_ID:?}-api
+      PELICAN_KEY_PATH: /secrets/issuer-key.pem
+      ARROW_COMPRESSION: zstd
+    volumes:
+      - ${PELICAN_KEY:?}:/secrets/issuer-key.pem:ro
+    mem_limit: 4g
+  probe:
+    build:
+      context: ${LIVE_ROOT:?}/probe-build
+    environment:
+      RUN_ID: ${RUN_ID:?}
+      WAREHOUSE: ${WAREHOUSE:?}
+      INFLUX_TOKEN: ${INFLUX_TOKEN:?}
+      BROKER_PASSWORD: ${BROKER_PASSWORD:?}
+      LOADER_TOKEN: ${LOADER_TOKEN:?}
+      READER_TOKEN: ${READER_TOKEN:?}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?}
+      PELICAN_KEY_PATH: /secrets/issuer-key.pem
+    volumes:
+      - ${LIVE_ROOT:?}/reports:/reports
+      - ${LIVE_ROOT:?}/coordinator:/state:ro
+      - ${PELICAN_KEY:?}:/secrets/issuer-key.pem:ro
+    mem_limit: 1g

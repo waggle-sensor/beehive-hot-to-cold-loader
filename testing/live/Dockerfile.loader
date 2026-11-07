@@ -1,0 +1,7 @@
+# Exercise the workspace loader on the Python version used by its VM tests.
+FROM python:3.12-slim-bookworm
+WORKDIR /loader
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY main.py archive.py ./
+ENTRYPOINT ["python", "-u", "main.py"]

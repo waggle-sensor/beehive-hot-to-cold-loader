@@ -1,0 +1,11 @@
+FROM python:3.12-slim-bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt 'PyJWT[crypto]==2.10.1'
+COPY client /client
+RUN pip install --no-cache-dir /client
+COPY duckdb /usr/local/bin/duckdb
+RUN duckdb -batch -bail -c "INSTALL httpfs; INSTALL iceberg;"
+COPY probe.py /live/probe.py
+ENTRYPOINT ["python", "-u", "/live/probe.py"]

@@ -1,0 +1,31 @@
+# Dedicated source consistency fixture. Never attach a production Influx volume.
+name: sage-archive-source-fixture
+services:
+  influxdb:
+    image: influxdb:2.7.7
+    ports:
+      - "18087:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: fixture
+      DOCKER_INFLUXDB_INIT_PASSWORD: fixture-password
+      DOCKER_INFLUXDB_INIT_ORG: waggle
+      DOCKER_INFLUXDB_INIT_BUCKET: fixture-initial
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: archive-fixture-only-token
+      INFLUXD_STORAGE_CACHE_SNAPSHOT_MEMORY_SIZE: "1048576"
+      # Leave time to observe WAL-only writes before snapshotting, then allow
+      # several reconciliations before the shard becomes cold for compaction.
+      INFLUXD_STORAGE_CACHE_SNAPSHOT_WRITE_COLD_DURATION: "10s"
+      INFLUXD_STORAGE_COMPACT_FULL_WRITE_COLD_DURATION: "30s"
+    volumes:
+      - "${HOT_TO_COLD_FIXTURE_ROOT:?set a fresh isolated absolute fixture directory}:/var/lib/influxdb2"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2g
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
