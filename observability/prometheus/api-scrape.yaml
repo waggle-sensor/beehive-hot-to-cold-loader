@@ -1,8 +1,0 @@
-# Optional: reuse the existing API scrape if one is already configured.
-scrape_configs:
-  - job_name: beehive-data-api
-    scrape_interval: 30s
-    scrape_timeout: 10s
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['beehive-data-api:10000']
