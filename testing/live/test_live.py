@@ -43,6 +43,25 @@ class IsolationTests(unittest.TestCase):
                 with self.subTest(field=field),self.assertRaises(ValueError):run.Run(root)
             self.assertEqual((root/"private-config.json").stat().st_mode&0o777,0o600)
 
+    def test_image_pins_replace_application_builds_and_keep_the_probe(self):
+        digest = "a"*64
+        with self.assertRaises(ValueError):
+            run.image_ref("waggle/beehive-data-api:pr-12")
+        self.assertEqual(run.image_ref("waggle/beehive-data-api@sha256:"+digest), "waggle/beehive-data-api@sha256:"+digest)
+        with TemporaryDirectory() as directory:
+            compose = Path(directory)/"compose.yml"
+            compose.write_text(Path(run.HERE/"compose.yml").read_text())
+            run.pin_application_images(compose)
+            text = compose.read_text()
+            self.assertNotIn("ARCHIVER_SOURCE", text)
+            self.assertNotIn("API_SOURCE", text)
+            self.assertNotIn("loader-build", text)
+            self.assertEqual(text.count("platform: linux/amd64"), 3)
+            self.assertIn("probe-build", text)
+            self.assertIn("${ARCHIVER_IMAGE:?}", text)
+            self.assertIn("${API_IMAGE:?}", text)
+            self.assertIn("${LOADER_IMAGE:?}", text)
+
     def test_non_duckdb2_fails_before_origin_io(self):
         from types import SimpleNamespace
         with patch.object(probe.subprocess,"run",return_value=SimpleNamespace(stdout="v1.5.6")),patch.object(probe,"call") as call:

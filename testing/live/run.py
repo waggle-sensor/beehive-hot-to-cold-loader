@@ -67,6 +67,31 @@ def tree_hash(root):
     return digest.hexdigest()
 
 
+def image_ref(value):
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,200}@sha256:[a-f0-9]{64}", value):
+        raise ValueError("pinned image must be name@sha256:<64 hex>")
+    return value
+
+
+def pin_application_images(path):
+    # The copied compose is private to this run. Removing build blocks keeps
+    # compose from replacing the pinned digests with a workspace build.
+    text = path.read_text()
+    replacements = (
+        ("  archiver:\n    build:\n      context: ${ARCHIVER_SOURCE:?}\n",
+         "  archiver:\n    image: ${ARCHIVER_IMAGE:?}\n    platform: linux/amd64\n    pull_policy: never\n"),
+        ("  loader:\n    build:\n      context: ${LIVE_ROOT:?}/loader-build\n",
+         "  loader:\n    image: ${LOADER_IMAGE:?}\n    platform: linux/amd64\n    pull_policy: never\n"),
+        ("  api:\n    build:\n      context: ${API_SOURCE:?}\n",
+         "  api:\n    image: ${API_IMAGE:?}\n    platform: linux/amd64\n    pull_policy: never\n"),
+    )
+    for old, new in replacements:
+        if old not in text:
+            raise ValueError("live compose has no replaceable build block")
+        text = text.replace(old, new, 1)
+    path.write_text(text)
+
+
 def prepare(args):
     key = local(args.pelican_key)
     duck = local(args.duckdb)
@@ -88,10 +113,19 @@ def prepare(args):
                          (WORKSPACE / "beehive-influxdb-loader/requirements.txt", "requirements.txt"), (duck, "duckdb")):
         shutil.copy2(source, root / "probe-build" / name)
     shutil.copy2(HERE / "compose.yml", root / "compose.yml")
+    images = {}
+    supplied = (args.archiver_image, args.api_image, args.loader_image)
+    if any(supplied):
+        if not all(supplied):
+            raise ValueError("pin the archiver, API, and loader images together")
+        images = {"archiver": image_ref(args.archiver_image), "api": image_ref(args.api_image), "loader": image_ref(args.loader_image)}
+        pin_application_images(root / "compose.yml")
     origin = origin_url(args.origin)
     config = {"RUN_ID": run_id, "LIVE_ROOT": str(root), "PELICAN_KEY": str(key),
               "WAREHOUSE": origin + "/cold-storage-archive-live-" + run_id + "/warehouse",
               "ARCHIVER_SOURCE": str(root / "archiver-build"), "API_SOURCE": str(root / "api-build"),
+              "ARCHIVER_IMAGE": images.get("archiver", ""), "API_IMAGE": images.get("api", ""),
+              "LOADER_IMAGE": images.get("loader", ""),
               "COORDINATE_ONLY": "true", "DELETE_ENABLED": "false"}
     for name in ("LOADER_TOKEN", "READER_TOKEN", "ADMIN_TOKEN", "INFLUX_TOKEN", "INFLUX_PASSWORD", "BROKER_PASSWORD"):
         config[name] = secrets.token_hex(32)
@@ -100,6 +134,7 @@ def prepare(args):
                 "origin": origin, "run_id": run_id, "phase": "prepared", "passed": False,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "execution_policy":{"normalization_threads":16,"normalization_merge_fan_in":16,"normalization_merge_concurrency":1,"comparison_threads":16,"build_threads":16,"build_sort_threads":2,"canonical_reuse":True,"build_canonicalization":"tag_dictionary","reconciliation_canonicalization":"raw_tag_dictionary","verification_canonicalization":"local_dictionary","partitioning":"fixed"},
+                "images": images,
                 "source_sha256":{name:tree_hash(root/name) for name in ("archiver-build","api-build","loader-build","probe-build")}}
     save(root / "run.json", manifest)
     return root
@@ -147,9 +182,21 @@ class Run:
         subprocess.run(["docker", "info", "--format", "{{.OSType}}/{{.Architecture}}"], check=True)
         started = False
         try:
-            self.phase("building")
+            images = self.manifest.get("images") or {}
+            self.phase("pulling" if images else "building")
             self.compose("config", "--quiet")
-            self.compose("build", "archiver", "api", "loader", "probe")
+            if images:
+                for ref in images.values():
+                    subprocess.run(["docker", "pull", "--platform", "linux/amd64", ref], check=True)
+                    inspected = subprocess.run(["docker", "image", "inspect", ref, "--format", "{{.Os}}/{{.Architecture}}"],
+                                               check=True, capture_output=True, text=True)
+                    if inspected.stdout.strip() != "linux/amd64":
+                        raise ValueError("pinned image is not linux/amd64")
+                self.manifest["image_architecture"] = "linux/amd64"
+                save(self.root / "run.json", self.manifest)
+                self.compose("build", "probe")
+            else:
+                self.compose("build", "archiver", "api", "loader", "probe")
             started = True
             self.compose("up", "-d", "--wait", "influx", "broker")
             self.probe("bootstrap")
@@ -204,6 +251,9 @@ def main():
     parser.add_argument("--origin", default="https://nrdstor.nationalresearchplatform.org:8443/sage")
     parser.add_argument("--pelican-key", type=Path, default=WORKSPACE / "honeyhouse-config/applications/waggle-access/pelican/issuer-key.pem")
     parser.add_argument("--duckdb", type=Path, default=ARCHIVER / "bin/duckdb")
+    parser.add_argument("--archiver-image", help="pinned archiver image, name@sha256:<digest>; requires the API and loader pins")
+    parser.add_argument("--api-image", help="pinned API image, name@sha256:<digest>")
+    parser.add_argument("--loader-image", help="pinned loader image, name@sha256:<digest>")
     args = parser.parse_args()
     if args.stop:
         Run(args.stop).compose("stop")
