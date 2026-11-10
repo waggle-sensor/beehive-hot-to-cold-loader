@@ -13,7 +13,7 @@
   "title": "Beehive hot-to-cold loader",
   "description": "Archival outcomes, active stages, backlog, read leases and Go process health. Detailed performance profiles remain separate.",
   "schemaVersion": 38,
-  "version": 4,
+  "version": 5,
   "editable": false,
   "tags": [
     "beehive",
@@ -2331,6 +2331,21 @@
       "options": {
         "mode": "markdown",
         "content": "Coordinate-only mode serves grants and receipts. It does not create archive jobs, late jobs, or deletions. The cold routing frontier is the exclusive boundary between cold and hot queries. It is not the time Influx has deleted. Retention lag measures how far that frontier sits behind the hot-retention deadline.\n\nGo CPU, resident memory, goroutines, and garbage-collection time are this process only. DuckDB and influxd are outside those values.\n\nStage attempts, scheduler errors, and profile cleanup are process-local counters. They reset when the process restarts. Milestone counts include only events scraped inside the selected time range.\n\nPending late records are unfinished inbox corrections, not late points still stored in Influx. Profile cleanup removes performance profiles only. Journals, catalogs, receipts, and verification evidence stay."
+      }
+    },
+    {
+      "id": 52,
+      "type": "text",
+      "title": "Archive lifecycle states",
+      "gridPos": {
+        "x": 0,
+        "y": 162,
+        "w": 24,
+        "h": 16
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Archive jobs advance oldest-first through durable stages. A state names the **next** work to perform, not a worker that is running it now. Only complete UTC days ending at or before `now - hot retention` are eligible. Failed work stays recoverable. `ROUTED` means cold data is queryable; it does not mean the hot copy has been deleted. Late jobs finish at `ROUTED` without hot deletion. Full detail: [docs/architecture.md](https://github.com/waggle-sensor/beehive-hot-to-cold-loader/blob/main/docs/architecture.md).\n\n| State | Work before advancing |\n| --- | --- |\n| `FENCING` | Wait for writer permits covering the day to release or expire plus drain grace. New writes to the fenced day become late receipts. |\n| `EXPORTING` | Export the source engine into primitive local Parquet, retaining replay sequence. |\n| `EXPORTED` | Normalize overwritten identities and prove equality against an independent Influx query. |\n| `RECONCILED` | Materialize expected rows, pack the warehouse layout, and verify the build. |\n| `BUILT` | Publish files and commit an Iceberg snapshot; recognize an already committed job on retry. |\n| `COMMITTED` | Read back remote objects and perform fresh exact verification. |\n| `REMOTE_VERIFIED` | Activate the snapshot and advance contiguous coverage atomically in the control journal. |\n| `ROUTED` | For an archive job, wait for deletion enablement and old readers. Late jobs finish here without hot deletion. |\n| `DELETING` | Reverify the published data on every destructive attempt, then request the hot interval deletion. |\n| `DELETE_REQUESTED` | Query the interval to confirm it is empty; retry through `DELETING` if needed. |\n| `COMPLETE` | Persist completion and clean eligible local scratch. |"
       }
     }
   ],
