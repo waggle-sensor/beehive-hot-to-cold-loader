@@ -20,6 +20,13 @@ sys.path.insert(0,str(run.WORKSPACE / "sage-data-client/src"))
 
 
 class IsolationTests(unittest.TestCase):
+    def test_configured_table_path_is_scoped(self):
+        with patch.dict(os.environ, ICEBERG_NAMESPACE="telemetry", ICEBERG_TABLE_NAME="readings"):
+            self.assertEqual(probe.table_path(), "/telemetry/readings")
+        for value in ("", "../other", "a/b", "a.b", "with space"):
+            with patch.dict(os.environ, ICEBERG_NAMESPACE=value, ICEBERG_TABLE_NAME="observations"):
+                with self.assertRaises(ValueError):probe.table_path()
+
     def test_origin_and_local_paths_cannot_select_existing_storage(self):
         self.assertEqual(run.origin_url("https://origin:8443/sage"),"https://origin:8443/sage")
         for url in ("http://origin/sage","https://origin/node-data","https://origin/sage/cold-storage-demo/lakehouse",
@@ -145,7 +152,7 @@ class VerifierTests(unittest.TestCase):
 
     def test_warehouse_audit_requires_v3_variant_map_ns_and_day_partition(self):
         root="https://origin/sage/cold-test-"+"a"*32+"/lakehouse"
-        body={"format-version":3,"location":root+"/sage/obs","current-schema-id":0,
+        body={"format-version":3,"location":root+"/sage/observations","current-schema-id":0,
               "schemas":[{"schema-id":0,"fields":[{"id":1,"name":"time","type":"timestamptz_ns"},
                 {"id":11,"name":"value","type":"variant"},{"id":10,"name":"meta","type":{"type":"map"}}]}],
               "properties":{"sage.layout":"plugin-vsn-time","sage.layout.version":"bounded-plugin-v1",
@@ -159,9 +166,9 @@ class VerifierTests(unittest.TestCase):
                        lambda b:b["partition-specs"][0]["fields"][0].update(transform="hour")):
             bad=copy.deepcopy(body);mutate(bad);bads.append(bad)
         with TemporaryDirectory() as directory,patch.dict(os.environ,WAREHOUSE=root),patch.object(probe,"REPORTS",Path(directory)),patch.object(probe,"token",return_value="test-token"):
-            with patch.object(probe,"json_call",return_value=body):self.assertEqual(probe.warehouse_contract(root+"/sage/obs/metadata/old.metadata.json")["format"],3)
+            with patch.object(probe,"json_call",return_value=body):self.assertEqual(probe.warehouse_contract(root+"/sage/observations/metadata/old.metadata.json")["format"],3)
             for bad in bads:
-                with patch.object(probe,"json_call",return_value=bad),self.assertRaises(AssertionError):probe.warehouse_contract(root+"/sage/obs/metadata/old.metadata.json")
+                with patch.object(probe,"json_call",return_value=bad),self.assertRaises(AssertionError):probe.warehouse_contract(root+"/sage/observations/metadata/old.metadata.json")
 
 
 

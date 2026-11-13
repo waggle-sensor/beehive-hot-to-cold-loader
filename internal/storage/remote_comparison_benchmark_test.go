@@ -28,26 +28,26 @@ import (
 
 // remoteBenchmarkTarget is the target for a remote comparison benchmark.
 type remoteBenchmarkTarget struct {
-	Warehouse      string            `json:"warehouse"` // the warehouse of the target
-	Metadata       string            `json:"metadata"` // the metadata of the target
-	Day            string            `json:"day"` // the day of the target
+	Warehouse      string            `json:"warehouse"`               // the warehouse of the target
+	Metadata       string            `json:"metadata"`                // the metadata of the target
+	Day            string            `json:"day"`                     // the day of the target
 	ExpectedSHA256 string            `json:"expected_parquet_sha256"` // the expected SHA-256 of the target
-	FileSHA256     map[string]string `json:"file_sha256"` // the SHA-256 of the files in the target
+	FileSHA256     map[string]string `json:"file_sha256"`             // the SHA-256 of the files in the target
 }
 
 // remoteBenchmarkContext is the context for a remote comparison benchmark.
 type remoteBenchmarkContext struct {
-	SnapshotID     int64             `json:"snapshot_id"` // the snapshot ID of the target
+	SnapshotID     int64             `json:"snapshot_id"`     // the snapshot ID of the target
 	MetadataSHA256 map[string]string `json:"metadata_sha256"` // the SHA-256 of the metadata of the target
-	Rows           int64             `json:"rows"` // the rows of the target
-	Objects        int               `json:"objects"` // the objects of the target
+	Rows           int64             `json:"rows"`            // the rows of the target
+	Objects        int               `json:"objects"`         // the objects of the target
 }
 
 // The manifest reader has no write interface. Every URL is scope-checked before
 // Open, and all current data-file references must match the verification journal.
 // remoteBenchmarkIO is the IO for a remote comparison benchmark.
 type remoteBenchmarkIO struct {
-	reader *Pelican // the reader for the target
+	reader *Pelican          // the reader for the target
 	hashes map[string]string // the SHA-256 of the files in the target
 }
 
@@ -90,7 +90,7 @@ func inspectRemoteComparison(p *Pelican, target remoteBenchmarkTarget) (remoteBe
 		return out, e
 	}
 	snapshot := meta.CurrentSnapshot()
-	if meta.Version() != 3 || snapshot == nil || meta.Location() != target.Warehouse+"/sage/obs" {
+	if meta.Version() != 3 || snapshot == nil || meta.Location() != p.Table.Location(target.Warehouse) {
 		return out, fmt.Errorf("expected a pinned Iceberg v3 managed snapshot")
 	}
 	manifests, e := snapshot.Manifests(reader)
@@ -193,7 +193,7 @@ func remoteBenchmarkInputs(t *testing.T) (remoteBenchmarkTarget, *Pelican, strin
 	if e != nil || rows < 1 {
 		t.Fatal("positive audited count required")
 	}
-	reader, e := NewPelicanReader(target.Warehouse, os.Getenv("SAGE_REMOTE_KEY"), root)
+	reader, e := NewPelicanReader(target.Warehouse, os.Getenv("SAGE_REMOTE_KEY"), root, TableIdentity{})
 	if e != nil {
 		t.Fatal(e)
 	}

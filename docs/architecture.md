@@ -4,7 +4,7 @@
 
 ## Responsibilities
 
-The service archives one Influx bucket into the managed Iceberg table `sage.obs` on Pelican. It owns the archival scheduler, writer fences, late-data inbox, read grants, local SQL catalog, publication, verification, and guarded deletion. It does not serve measurement queries; `beehive-data-api` does that.
+The service archives one Influx bucket into the managed Iceberg table `sage.observations` (default; namespace and table name are configurable) on Pelican. It owns the archival scheduler, writer fences, late-data inbox, read grants, local SQL catalog, publication, verification, and guarded deletion. It does not serve measurement queries; `beehive-data-api` does that.
 
 ```mermaid
 flowchart LR
@@ -54,7 +54,7 @@ A late job merges accepted records into the affected day's pinned cold snapshot 
 | Property | Current policy |
 | --- | --- |
 | Catalog | Local SQLite SQL catalog in `catalog.db`; remote objects on Pelican |
-| Table | `sage.obs`, Iceberg format v3 |
+| Table | `sage.observations` by default; configurable namespace/table; Iceberg format v3 |
 | Partition | UTC `day(time)` |
 | File membership | Chronological batches of at most 10,000,000 rows per day |
 | Order inside a file | `plugin`, then `vsn`, then `time`, ascending with nulls last |

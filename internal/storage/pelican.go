@@ -31,6 +31,7 @@ import (
 // Pelican confines every IO operation and token to a configured isolated root.
 // Data objects stream through disk. Remove is disabled; maintenance is separate.
 type Pelican struct {
+	Table    TableIdentity
 	Base     *url.URL          // the base URL of the Pelican instance
 	Prefix   string            // the prefix of the warehouse
 	Key      *ecdsa.PrivateKey // the private key for the Pelican instance
@@ -40,17 +41,17 @@ type Pelican struct {
 }
 
 // NewPelican opens a read-write client for the destination warehouse.
-func NewPelican(warehouse, keyPath, scratch string) (*Pelican, error) {
-	return newPelican(warehouse, keyPath, scratch, false)
+func NewPelican(warehouse, keyPath, scratch string, table TableIdentity) (*Pelican, error) {
+	return newPelican(warehouse, keyPath, scratch, table, false)
 }
 
 // NewPelicanReader opens a client that refuses writes. Bootstrap sources use it.
-func NewPelicanReader(warehouse, keyPath, scratch string) (*Pelican, error) {
-	return newPelican(warehouse, keyPath, scratch, true)
+func NewPelicanReader(warehouse, keyPath, scratch string, table TableIdentity) (*Pelican, error) {
+	return newPelican(warehouse, keyPath, scratch, table, true)
 }
 
 // newPelican creates a new Pelican instance for the given warehouse, key path, and scratch directory.
-func newPelican(warehouse, keyPath, scratch string, readOnly bool) (*Pelican, error) {
+func newPelican(warehouse, keyPath, scratch string, table TableIdentity, readOnly bool) (*Pelican, error) {
 	u, e := url.Parse(warehouse)
 	if e != nil {
 		return nil, e
@@ -83,7 +84,7 @@ func newPelican(warehouse, keyPath, scratch string, readOnly bool) (*Pelican, er
 	c := &http.Client{Timeout: 20 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	// Scope lakehouse tokens to the entire root, relative to /sage.
 	prefix := strings.TrimPrefix(u.Path, "/sage")
-	return &Pelican{Base: u, Prefix: prefix, Key: k, Client: c, Scratch: scratch, ReadOnly: readOnly}, nil
+	return &Pelican{Table: table, Base: u, Prefix: prefix, Key: k, Client: c, Scratch: scratch, ReadOnly: readOnly}, nil
 }
 
 // Token returns a short-lived bearer token. Write tokens are minted only for PUT.
@@ -114,13 +115,13 @@ func (p *Pelican) token(write bool, lifetime time.Duration) (string, error) {
 	return unsigned + "." + base64.RawURLEncoding.EncodeToString(sig), nil
 }
 
-// validate accepts only an HTTPS object under this warehouse's sage/obs prefix.
+// validate accepts only an HTTPS object under the configured table prefix.
 func (p *Pelican) validate(name string) (string, error) {
 	u, e := url.Parse(name)
 	if e != nil {
 		return "", e
 	}
-	if u.Scheme != "https" || u.Host != p.Base.Host || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.RawPath != "" || path.Clean(u.Path) != u.Path || !strings.HasPrefix(u.Path, p.Base.Path+"/sage/obs/") {
+	if u.Scheme != "https" || u.Host != p.Base.Host || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.RawPath != "" || path.Clean(u.Path) != u.Path || !strings.HasPrefix(u.Path, p.Table.Location(p.Base.Path)+"/") {
 		return "", errors.New("object outside managed warehouse")
 	}
 	return u.String(), nil
@@ -308,7 +309,7 @@ var _ iceio.WriteFileIO = (*Pelican)(nil)
 
 // Head resolves the published version hint to a metadata URL.
 func (p *Pelican) Head() (string, error) {
-	hint, e := p.ReadFile(p.Base.String() + "/sage/obs/metadata/version-hint.text")
+	hint, e := p.ReadFile(p.Table.Location(p.Base.String()) + "/metadata/version-hint.text")
 	if e != nil {
 		return "", e
 	}
@@ -316,5 +317,5 @@ func (p *Pelican) Head() (string, error) {
 	if !regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._-]*$`).MatchString(stem) || strings.Contains(stem, "..") {
 		return "", errors.New("invalid bootstrap metadata hint")
 	}
-	return p.Base.String() + "/sage/obs/metadata/" + stem + ".metadata.json", nil
+	return p.Table.Location(p.Base.String()) + "/metadata/" + stem + ".metadata.json", nil
 }

@@ -212,10 +212,10 @@ def strings():
 def source():
     warehouse=os.environ["SOURCE_WAREHOUSE"]
     if warehouse==os.environ["WAREHOUSE"]:raise ValueError("source must remain separate/read-only")
-    raw,_=base.call(warehouse+"/sage/obs/metadata/version-hint.text",headers={"Authorization":"Bearer "+auth(warehouse)})
+    raw,_=base.call(warehouse+base.table_path()+"/metadata/version-hint.text",headers={"Authorization":"Bearer "+auth(warehouse)})
     stem=raw.decode().strip()
     if not re.fullmatch(r"[A-Za-z0-9_-]+",stem):raise ValueError("unsafe source version hint")
-    metadata=warehouse+"/sage/obs/metadata/"+stem+".metadata.json"
+    metadata=warehouse+base.table_path()+"/metadata/"+stem+".metadata.json"
     # Native type labels are calibrated against DuckDB itself, never guessed.
     cases=" ".join("WHEN variant_typeof(value)=variant_typeof("+literal+"::VARIANT) THEN "+base.sqlquote(kind)
         for literal,kind in (("0::DOUBLE","float"),("0::BIGINT","int"),("0::UBIGINT","uint"),("false","bool"),("''::VARCHAR","string")))

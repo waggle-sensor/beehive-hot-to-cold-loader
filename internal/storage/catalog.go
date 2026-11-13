@@ -1,4 +1,4 @@
-// catalog.go owns the managed Iceberg table sage.obs. The schema, day(time)
+// catalog.go owns the configured managed Iceberg table. The schema, day(time)
 // partition, and layout properties are fixed; a mismatch refuses startup.
 
 package storage
@@ -52,14 +52,14 @@ func OpenCatalog(ctx context.Context, path, warehouse string, p *Pelican) (*Cata
 	// Only this daemon owns the HTTPS implementation. Scope validation occurs on
 	// every operation, including manifest references supplied by Iceberg itself.
 	transportsMu.Lock()
-	transports[warehouse] = p
+	transports[p.Table.Location(warehouse)] = p
 	transportsMu.Unlock()
 	registerHTTPS.Do(func() {
 		iceio.Register("https", func(_ context.Context, u *url.URL, _ map[string]string) (iceio.IO, error) {
 			transportsMu.RLock()
 			defer transportsMu.RUnlock()
 			for _, io := range transports {
-				if u.Scheme == io.Base.Scheme && u.Host == io.Base.Host && (u.Path == io.Base.Path || strings.HasPrefix(u.Path, io.Base.Path+"/")) {
+				if u.Scheme == io.Base.Scheme && u.Host == io.Base.Host && (u.Path == io.Table.Location(io.Base.Path) || strings.HasPrefix(u.Path, io.Table.Location(io.Base.Path)+"/")) {
 					return io, nil
 				}
 			}
@@ -83,13 +83,16 @@ func OpenCatalog(ctx context.Context, path, warehouse string, p *Pelican) (*Cata
 	return &Catalog{db, cat, p, warehouse}, nil
 }
 
-var ident = table.Identifier{"sage", "obs"} // ident is the identifier for the sage.obs table
+func (c *Catalog) Identifier() table.Identifier {
+	return table.Identifier{c.IO.Table.Namespace(), c.IO.Table.Name()}
+}
+func (c *Catalog) Location() string { return c.IO.Table.Location(c.Warehouse) }
 
 // Init accepts an existing matching table or creates one in an empty prefix.
 func (c *Catalog) Init(ctx context.Context) error {
-	t, e := c.Catalog.LoadTable(ctx, ident)
+	t, e := c.Catalog.LoadTable(ctx, c.Identifier())
 	if e == nil {
-		if t.Metadata().Version() != 3 || !t.Schema().Equals(Schema()) || t.Location() != c.Warehouse+"/sage/obs" {
+		if t.Metadata().Version() != 3 || !t.Schema().Equals(Schema()) || t.Location() != c.Location() {
 			return errors.New("existing managed table schema/location differs")
 		}
 		if _, e = partitionField(t); e != nil {
@@ -110,7 +113,7 @@ func (c *Catalog) Init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, "PROPFIND", c.Warehouse+"/sage/obs", nil)
+	req, err := http.NewRequestWithContext(ctx, "PROPFIND", c.Location(), nil)
 	if err != nil {
 		return err
 	}
@@ -124,19 +127,19 @@ func (c *Catalog) Init(ctx context.Context) error {
 	if resp.StatusCode != 404 {
 		return fmt.Errorf("new managed table root must be absent; PROPFIND HTTP %d", resp.StatusCode)
 	}
-	if e = c.Catalog.CreateNamespace(ctx, table.Identifier{"sage"}, nil); e != nil && !errors.Is(e, catalog.ErrNamespaceAlreadyExists) {
+	if e = c.Catalog.CreateNamespace(ctx, table.Identifier{c.IO.Table.Namespace()}, nil); e != nil && !errors.Is(e, catalog.ErrNamespaceAlreadyExists) {
 		return e
 	}
 	spec := iceberg.NewPartitionSpec(iceberg.PartitionField{SourceIDs: []int{1}, FieldID: 1000, Name: "day_time", Transform: iceberg.DayTransform{}})
 	// CreateTable reassigns IDs depth-first (making value ID 13). Use the
 	// catalog's atomic create transaction with explicit schema updates instead.
 	unsorted := table.UnsortedSortOrder
-	_, _, e = c.Catalog.CommitTable(ctx, ident, []table.Requirement{table.AssertCreate()}, []table.Update{
+	_, _, e = c.Catalog.CommitTable(ctx, c.Identifier(), []table.Requirement{table.AssertCreate()}, []table.Update{
 		table.NewUpgradeFormatVersionUpdate(3), table.NewAssignUUIDUpdate(uuid.New()),
 		table.NewAddSchemaUpdate(Schema()), table.NewSetCurrentSchemaUpdate(-1),
 		table.NewAddPartitionSpecUpdate(&spec, true), table.NewSetDefaultSpecUpdate(-1),
 		table.NewAddSortOrderUpdate(&unsorted), table.NewSetDefaultSortOrderUpdate(-1),
-		table.NewSetLocationUpdate(c.Warehouse + "/sage/obs"),
+		table.NewSetLocationUpdate(c.Location()),
 		table.NewSetPropertiesUpdate(iceberg.Properties{
 			ValueEncodingProperty: ValueEncoding, "sage.layout": "plugin-vsn-time", "sage.layout.version": "bounded-plugin-v1",
 			"sage.batch.order": "time", "sage.row-group.rows": "262144",
@@ -149,7 +152,7 @@ func (c *Catalog) Init(ctx context.Context) error {
 // Commit appends data files, or replaces them for a late correction. A retry
 // of the same job returns the snapshot already recorded for that job.
 func (c *Catalog) Commit(ctx context.Context, job *control.Job) (string, error) {
-	t, e := c.Catalog.LoadTable(ctx, ident)
+	t, e := c.Catalog.LoadTable(ctx, c.Identifier())
 	if e != nil {
 		return "", e
 	}
@@ -194,7 +197,7 @@ func (c *Catalog) PublishHint(ctx context.Context, metadata string) error {
 	if stem == base || stem == "" || strings.ContainsAny(stem, "/\\\n\r") {
 		return fmt.Errorf("invalid metadata stem")
 	}
-	hint := c.Warehouse + "/sage/obs/metadata/version-hint.text"
+	hint := c.Location() + "/metadata/version-hint.text"
 	if e := c.IO.WriteFile(hint, []byte(stem)); e != nil {
 		return e
 	}
@@ -223,7 +226,7 @@ func partitionField(t *table.Table) (iceberg.PartitionField, error) {
 
 // DayPrefix is the remote directory for one UTC day's data files.
 func (c *Catalog) DayPrefix(ctx context.Context, day string) (string, error) {
-	t, e := c.Catalog.LoadTable(ctx, ident)
+	t, e := c.Catalog.LoadTable(ctx, c.Identifier())
 	if e != nil {
 		return "", e
 	}
@@ -235,5 +238,5 @@ func (c *Catalog) DayPrefix(ctx context.Context, day string) (string, error) {
 	if e != nil {
 		return "", e
 	}
-	return c.Warehouse + "/sage/obs/data/" + field.Name + "=" + strconv.FormatInt(dayStart.Unix()/86400, 10), nil
+	return c.Location() + "/data/" + field.Name + "=" + strconv.FormatInt(dayStart.Unix()/86400, 10), nil
 }

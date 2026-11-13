@@ -43,7 +43,9 @@ func main() {
 func run() error {
 	addr := flag.String("addr", env("HOT_TO_COLD_ADDR", ":10001"), "internal coordination listen address")
 	state := flag.String("state", env("HOT_TO_COLD_STATE", "./state"), "durable private state and staging directory")
-	warehouse := flag.String("warehouse", env("HOT_TO_COLD_WAREHOUSE", ""), "isolated https://host/sage/cold/lakehouse")
+	lakehouse := flag.String("lakehouse", env("COLD_LAKEHOUSE", ""), "isolated https://host/sage/cold/lakehouse")
+	namespace := flag.String("namespace", env("ICEBERG_NAMESPACE", storage.DefaultNamespace), "Iceberg namespace")
+	tableName := flag.String("table-name", env("ICEBERG_TABLE_NAME", storage.DefaultTableName), "Iceberg table name")
 	start := flag.String("archive-start", env("HOT_TO_COLD_START", ""), "explicit first UTC day covered; history before it is not assumed")
 	archiveBefore := flag.String("archive-before", "", "optional exclusive UTC day to bound validation/backfill scheduling")
 	readLeaseDuration := flag.Duration("read-lease-duration", control.DefaultReadLeaseDuration, "renewable read lease lifetime; 1m deletion grace follows unrenewed expiry (positive, at most 24h)")
@@ -74,6 +76,10 @@ func run() error {
 	bootstrapWarehouse := flag.String("bootstrap-warehouse", "", "optional previously audited read-only warehouse")
 	bootstrapBefore := flag.String("bootstrap-before", "", "exclusive UTC date of audited source coverage; merge hot corrections before this date")
 	flag.Parse()
+	tableIdentity, tableErr := storage.NewTableIdentity(*namespace, *tableName)
+	if tableErr != nil {
+		return tableErr
+	}
 	profileRetention, err := time.ParseDuration(*profileRetentionText)
 	if err != nil || profileRetention < 0 {
 		return errors.New("profile-retention must be a nonnegative duration")
@@ -94,8 +100,8 @@ func run() error {
 	if *retention <= 0 || *interval <= 0 || *lateInterval <= 0 {
 		return errors.New("positive retention/scheduling intervals required")
 	}
-	if *start == "" || *warehouse == "" || (!*coordinateOnly && (*bucketID == "" || *engine == "")) {
-		return errors.New("archive-start, warehouse, bucket-id and engine-path are required")
+	if *start == "" || *lakehouse == "" || (!*coordinateOnly && (*bucketID == "" || *engine == "")) {
+		return errors.New("archive-start, lakehouse, bucket-id and engine-path are required")
 	}
 	if !*coordinated && !*coordinateOnly {
 		return errors.New("fencing requires --writers-coordinated after all bucket writers are migrated")
@@ -143,11 +149,14 @@ func run() error {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	store, e := control.Open(filepath.Join(root, "control.db"), *bucket, *warehouse, *start, *readLeaseDuration, *writeLeaseDuration)
+	store, e := control.Open(filepath.Join(root, "control.db"), *bucket, *lakehouse, *start, *readLeaseDuration, *writeLeaseDuration)
 	if e != nil {
 		return e
 	}
 	defer store.Close()
+	if err := tableIdentity.BindState(store); err != nil {
+		return err
+	}
 	if *resolveOwner != "" {
 		if !*confirmStopped {
 			return errors.New("resolve-stopped-owner requires confirm-owner-stopped")
@@ -166,11 +175,11 @@ func run() error {
 				return e
 			}
 		}
-		pelican, e := storage.NewPelican(*warehouse, *key, root)
+		pelican, e := storage.NewPelican(*lakehouse, *key, root, tableIdentity)
 		if e != nil {
 			return e
 		}
-		cat, e := storage.OpenCatalog(ctx, filepath.Join(root, "catalog.db"), *warehouse, pelican)
+		cat, e := storage.OpenCatalog(ctx, filepath.Join(root, "catalog.db"), *lakehouse, pelican)
 		if e != nil {
 			return e
 		}
@@ -193,10 +202,10 @@ func run() error {
 			if *bootstrapBefore <= *start {
 				return errors.New("bootstrap-before must follow archive-start")
 			}
-			if *bootstrapWarehouse == *warehouse {
+			if *bootstrapWarehouse == *lakehouse {
 				return errors.New("bootstrap warehouse must differ from destination")
 			}
-			worker.Bootstrap, e = storage.NewPelicanReader(*bootstrapWarehouse, *key, root)
+			worker.Bootstrap, e = storage.NewPelicanReader(*bootstrapWarehouse, *key, root, tableIdentity)
 			if e != nil {
 				return e
 			}
@@ -232,7 +241,7 @@ func run() error {
 		defer cancel()
 		server.Shutdown(c)
 	}()
-	log.Printf("archiver serving %s; retention=%s deletion=%t warehouse=%s", *addr, *retention, *deleteEnabled, *warehouse)
+	log.Printf("archiver serving %s; retention=%s deletion=%t lakehouse=%s table=%s.%s", *addr, *retention, *deleteEnabled, *lakehouse, tableIdentity.Namespace(), tableIdentity.Name())
 	archiveAt, lateAt, retryAt := time.Time{}, time.Time{}, time.Time{}
 	maintenance := &archive.ProfileRetention{Runner: runner, Duration: profileRetention}
 	var maintenanceAt time.Time

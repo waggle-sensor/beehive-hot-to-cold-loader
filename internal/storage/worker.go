@@ -238,7 +238,7 @@ func (w *Worker) Build(ctx context.Context, job *control.Job) error {
 // adopts the snapshot already marked with this job instead of uploading again.
 func (w *Worker) Commit(ctx context.Context, job *control.Job) (string, error) {
 	// On uncertain commit, inspect the authoritative catalog before re-uploading.
-	t, e := w.Catalog.Catalog.LoadTable(ctx, ident)
+	t, e := w.Catalog.Catalog.LoadTable(ctx, w.Catalog.Identifier())
 	if e != nil {
 		return "", e
 	}

@@ -12,7 +12,7 @@ import (
 
 func TestRemoteBenchmarkObjectIntegrityAndReadOnly(t *testing.T) {
 	writer, _ := mockPelican(t)
-	object := writer.Base.String() + "/sage/obs/data/test.parquet"
+	object := writer.Base.String() + "/sage/observations/data/test.parquet"
 	bytes := []byte("fixture object bytes")
 	if e := writer.WriteFile(object, bytes); e != nil {
 		t.Fatal(e)
@@ -36,7 +36,7 @@ func TestRemoteBenchmarkObjectIntegrityAndReadOnly(t *testing.T) {
 	if e := verifyRemoteObjectHashes(context.Background(), &reader, target); e == nil {
 		t.Fatal("changed bytes accepted")
 	}
-	target.FileSHA256 = map[string]string{"https://outside.test/sage/cold-test-other/lakehouse/sage/obs/data/test.parquet": hex.EncodeToString(hash[:])}
+	target.FileSHA256 = map[string]string{"https://outside.test/sage/cold-test-other/lakehouse/sage/observations/data/test.parquet": hex.EncodeToString(hash[:])}
 	if e := verifyRemoteObjectHashes(context.Background(), &reader, target); e == nil {
 		t.Fatal("cross-origin object accepted")
 	}

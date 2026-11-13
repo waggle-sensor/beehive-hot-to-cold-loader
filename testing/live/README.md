@@ -76,3 +76,11 @@ The two decoder tests need Arrow and Pandas. The other tests use the standard li
 Fresh runs fix the native thread policy. Normalization uses sixteen threads, merge fan-in sixteen, and one merge worker. Build materialization and per-file comparison use `--duckdb-build-threads=16`. Build batch sort and copy use `--duckdb-build-sort-threads=2`. Fresh reconciliation, commit, and pre-delete comparisons use sixteen threads on a private session copy. `--duckdb-threads` is not a service flag. Canonical shard reuse is required, and the first comparison partition count is fixed. The same native memory setting applies throughout.
 
 `run.json` records `execution_policy`: those thread counts, canonical reuse, fixed partitioning, and the `tag_dictionary`, `raw_tag_dictionary`, and `local_dictionary` canonicalization policies. `export-dedup.json` records the normalization policy the job actually used, and the live probe checks it before fixture deletion. `expected-profile.json` and `packing-profile.json` record the threads the build used. An existing prepared directory keeps its frozen commands. Prepare a fresh run to validate this policy. Preparation does not modify a deployed service.
+
+## Configurable table identity
+
+New runs capture `ICEBERG_NAMESPACE` and `ICEBERG_TABLE_NAME` from the preparing
+shell, defaulting to `sage` and `observations`, and forward them to the archiver,
+API, and probe. All three derive the table path from those saved settings.
+Set them before preparation to exercise a custom table in an isolated test
+root; restarting a prepared run does not change its persisted identity.

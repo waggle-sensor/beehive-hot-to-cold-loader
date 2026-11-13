@@ -34,3 +34,11 @@ Drain existing Influx loader processes and deploy the renewal-aware loader with 
 A new managed table is created with `sage.value.encoding=variant-uint64-decimal-v1`. An existing destination without that marker refuses to start, so the two encodings stay in separate tables. Prepare a fresh isolated managed prefix and a fresh state directory. When the history has already been audited, bring it across with the bootstrap source. The old warehouse stays as it is: the service does not rewrite it, and labeling its files unsigned by hand does not mark them. State recorded for another warehouse stays with that warehouse.
 
 A bootstrap source is accepted when it declares this convention, or when it is unmarked and holds only native float, int, bool, and string values. An unknown marker is rejected, and so is a decimal in an unmarked source. Once the new files exist, deploy a reader that understands the marker before sending aggregation traffic to them. The new prefix does not rewrite a warehouse that is already published, and it does not restore an unsigned kind that native Parquet has already dropped.
+
+## Table identity
+
+The loader and API must agree on `ICEBERG_NAMESPACE` (default `sage`) and
+`ICEBERG_TABLE_NAME` (default `observations`). A fresh production warehouse
+therefore creates `sage.observations` at `<warehouse>/sage/observations/`.
+Configure both services together before initialization. Changing these values
+does not rename an existing Iceberg table or migrate its journal/catalog.

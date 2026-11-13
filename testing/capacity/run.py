@@ -46,7 +46,7 @@ def prepare(args):
         EXPECTED_ROWS=str(args.expected_rows if args.expected_rows is not None else 0))
     if config["SOURCE_WAREHOUSE"]==config["WAREHOUSE"]:raise ValueError("source must differ from destination")
     live.save(root/"private-config.json",config)
-    command=["--state=/state","--warehouse=${WAREHOUSE}","--archive-start=${SOURCE_DAY}","--archive-before=${HOT_TO_COLD_BEFORE}",
+    command=["--state=/state","--lakehouse=${WAREHOUSE}","--archive-start=${SOURCE_DAY}","--archive-before=${HOT_TO_COLD_BEFORE}",
         "--influx-url=http://influx:8086","--bucket=waggle","--org=waggle","--bucket-id=${BUCKET_ID:-not-yet-discovered}",
         "--engine-path=/influx/engine","--interval=1s","--late-interval=1s","--duckdb-memory=${NATIVE_MEMORY}",
         "--duckdb-build-threads=16","--duckdb-build-sort-threads=2",

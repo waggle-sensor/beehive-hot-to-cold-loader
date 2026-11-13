@@ -52,7 +52,7 @@ After every writer for the selected bucket participates in coordination:
 ```sh
 ./bin/beehive-hot-to-cold-loader \
   --state /var/lib/beehive-hot-to-cold-loader \
-  --warehouse 'https://<host>/sage/cold/lakehouse' \
+  --lakehouse 'https://<host>/sage/cold/lakehouse' \
   --archive-start 2025-03-01 --archive-before 2025-03-02 \
   --influx-url http://influxdb:8086 \
   --org waggle --bucket waggle --bucket-id '<source bucket ID>' \
@@ -61,6 +61,12 @@ After every writer for the selected bucket participates in coordination:
 ```
 
 This bounds new archive scheduling to March 1; it does not disable recovery or late corrections. Choose coverage dates matching the source history. Use `--coordinate-only` during writer migration. Follow the [deployment guide](docs/deployment.md) before enabling archival or deletion against a real bucket.
+
+The table defaults to `sage.observations`, stored beneath
+`<warehouse>/sage/observations/`. Configure `ICEBERG_NAMESPACE` and
+`ICEBERG_TABLE_NAME` (or `--namespace` and `--table-name`) to select another
+table, and configure the API with the same values. See
+[configuration](docs/configuration.md#listener-and-persistent-identity).
 
 **Deletion is off by default.** Enabling it requires `--delete-enabled` and `--readers-coordinated` alongside coordinated writers. Keep Influx bucket retention unlimited so unverified age-based expiration cannot bypass the service. Use one active instance and one persistent state/catalog per warehouse. Never use `/node-data` or an existing demo warehouse as the writable destination.
 

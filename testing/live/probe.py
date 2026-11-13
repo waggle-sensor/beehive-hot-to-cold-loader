@@ -304,9 +304,17 @@ def sqlquote(value):
     return "'"+value.replace("'", "''")+"'"
 
 
+def table_path():
+    namespace = os.environ.get("ICEBERG_NAMESPACE", "sage")
+    name = os.environ.get("ICEBERG_TABLE_NAME", "observations")
+    if not all(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in (namespace, name)):
+        raise ValueError("invalid Iceberg namespace or table name")
+    return "/" + namespace + "/" + name
+
+
 def remote_rows(metadata):
     warehouse = os.environ["WAREHOUSE"]
-    if not metadata.startswith(warehouse+"/sage/obs/metadata/") or not metadata.endswith(".metadata.json"):
+    if not metadata.startswith(warehouse+table_path()+"/metadata/") or not metadata.endswith(".metadata.json"):
         raise AssertionError("snapshot outside isolated managed warehouse")
     keys = ",".join(sqlquote(tag) for tag in TAGS)
     full_meta = "map_concat(meta,map_from_entries(list_filter(list_zip(["+keys+"],["+",".join(TAGS)+"]),lambda x: x[2] IS NOT NULL)))"
@@ -331,11 +339,11 @@ def bootstrap(declare_broker=True):
     auth = {"Authorization": "Bearer "+token(write=True)}
     # A new UUID is allocated for every run. Never reuse a published warehouse.
     try:
-        with urlopen(Request(warehouse+"/sage/obs/metadata/version-hint.text", headers=auth), timeout=60):
+        with urlopen(Request(warehouse+table_path()+"/metadata/version-hint.text", headers=auth), timeout=60):
             raise AssertionError("generated prefix already has a published warehouse")
     except HTTPError as error:
         if error.code != 404: raise RuntimeError("new-prefix preflight returned HTTP "+str(error.code)) from None
-    # Keep the origin marker outside sage/obs. A file there creates the managed
+    # Keep the origin marker outside the configured table. A file there creates the managed
     # table collection, and a new catalog refuses to adopt an occupied root.
     marker = warehouse+"/validation/live-gate.json"
     data = json.dumps({"run_id":os.environ["RUN_ID"]}).encode()
@@ -503,10 +511,10 @@ def release_and_finish():
 
 def warehouse_contract(metadata):
     root=os.environ["WAREHOUSE"]
-    if not metadata.startswith(root+"/sage/obs/metadata/"):
+    if not metadata.startswith(root+table_path()+"/metadata/"):
         raise AssertionError("metadata outside this run")
     body=json_call(metadata,method="GET",headers={"Authorization":"Bearer "+token()})
-    if body["format-version"]!=3 or body["location"]!=root+"/sage/obs":
+    if body["format-version"]!=3 or body["location"]!=root+table_path():
         raise AssertionError("wrong Iceberg format/location")
     current=next(schema for schema in body["schemas"] if schema["schema-id"]==body["current-schema-id"])
     fields={field["name"]:field for field in current["fields"]}
