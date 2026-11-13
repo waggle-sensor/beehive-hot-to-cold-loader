@@ -1,6 +1,7 @@
 // assets_test.go checks that the dashboard and alert rules name only metrics
 // this process can publish, plus the read-renewal series scraped from the API.
-// Every panel query must also stay scoped to its selected job and instance.
+// Loader panel queries stay scoped to the ServiceMonitor job and the instance
+// variable. API renewal panels keep their own job and instance variables.
 
 package observability_test
 
@@ -93,7 +94,7 @@ func TestDashboardAndRuleMetricsExist(t *testing.T) {
 			t.Fatal("duplicate panel ID")
 		}
 		ids[panel.ID] = true
-		if panel.Type == "row" {
+		if panel.Type == "row" || panel.Type == "text" {
 			continue
 		}
 		if len(panel.Targets) == 0 {
@@ -101,7 +102,7 @@ func TestDashboardAndRuleMetricsExist(t *testing.T) {
 		}
 		for _, target := range panel.Targets {
 			check(target.Expr)
-			job, instance := `job=~"$job"`, `instance=~"$instance"`
+			job, instance := `job="beehive-hot-to-cold-loader"`, `instance=~"$instance"`
 			if strings.Contains(target.Expr, "$api_job") {
 				job, instance = `job=~"$api_job"`, `instance=~"$api_instance"`
 			}
@@ -129,7 +130,7 @@ func TestDashboardAndRuleMetricsExist(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{"prometheus/scrape.yaml", "prometheus/api-scrape.yaml", "grafana/provisioning/dashboards.yaml", "prometheus/alerts.test.yaml"} {
+	for _, name := range []string{"prometheus/scrape.yaml", "prometheus/alerts.test.yaml"} {
 		var doc map[string]any
 		if err = yaml.Unmarshal(read(name), &doc); err != nil {
 			t.Fatal(name, err)

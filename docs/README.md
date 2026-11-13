@@ -10,6 +10,7 @@ Start with [architecture](architecture.md) to understand the service, or [config
 | [Operations](operations.md) | Operators: monitoring, restart, recovery, leases, and retained state |
 | [Metrics](metrics.md) | Operators: Prometheus, Grafana, alerts, and profile retention |
 | [Development](development.md) | Developers: source map, extension points, and verification requirements |
+| [CI/CD](ci-cd.md) | Developers: GitHub Actions jobs, native smoke selection, and image publish rules |
 | [Validation](validation.md) | Developers and operators: native gates and performance policies |
 
 The [repository README](../README.md) provides build commands and a bounded run example. The [testing index](../testing/README.md) describes the maintained harnesses. Historical design and measurements live in [plan 12](https://github.com/seanshahkarami/sage-data-rework/blob/main/plans/12_dynamic_archival_service.md).

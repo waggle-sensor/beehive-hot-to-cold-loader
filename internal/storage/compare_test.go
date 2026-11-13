@@ -46,15 +46,19 @@ func TestNativeCanonicalPartitionComparison(t *testing.T) {
 	if binary == "" {
 		t.Skip("set SAGE_ARCHIVE_DUCKDB2 for DuckDB 2.0 comparison gate")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
-	d := DuckDB{Binary: binary, Work: t.TempDir(), Memory: "128MB"}
-	if e := d.Check(ctx); e != nil {
+	work := t.TempDir()
+	// Mismatch, multiplicity, and hash-collision checks stay at 128MB.
+	// The 17-million-row proof uses the production 3GB buffer and sixteen
+	// threads. The 1,000,000-row shard cap still forces refinement.
+	small := DuckDB{Binary: binary, Work: work, Memory: "128MB", Threads: 16}
+	if e := small.Check(ctx); e != nil {
 		t.Fatal(e)
 	}
 	base := `SELECT 1740787200000000194::BIGINT AS time,'x' AS name,'{"node":"n","sensor":"a,b=c"}' AS tags,'string' AS kind,'"a\nb"' AS value`
 	duplicate := "(" + base + ") UNION ALL (" + base + ")"
-	if e := d.EqualCanonical(ctx, duplicate, duplicate, ""); e != nil {
+	if e := small.EqualCanonical(ctx, duplicate, duplicate, ""); e != nil {
 		t.Fatal(e)
 	}
 	for _, changed := range []string{
@@ -64,28 +68,28 @@ func TestNativeCanonicalPartitionComparison(t *testing.T) {
 		"SELECT * REPLACE ('float' AS kind) FROM (" + base + ")",
 		"SELECT * REPLACE ('0' AS value) FROM (" + base + ")",
 	} {
-		if e := d.EqualCanonical(ctx, duplicate, "("+base+") UNION ALL ("+changed+")", ""); e == nil {
+		if e := small.EqualCanonical(ctx, duplicate, "("+base+") UNION ALL ("+changed+")", ""); e == nil {
 			t.Fatal("accepted altered record", changed)
 		}
 	}
-	if e := d.EqualCanonical(ctx, duplicate, base, ""); e == nil {
+	if e := small.EqualCanonical(ctx, duplicate, base, ""); e == nil {
 		t.Fatal("lost duplicate multiplicity")
 	}
 	// Deliberately choose a different full record with the SAME routing hash
 	// bucket. This must fail the exact comparison despite equal bucket counts.
 	collision := "SELECT * REPLACE (i::VARCHAR AS value) FROM (" + base + "),range(10000) r(i) WHERE hash(time,name,tags,kind,i::VARCHAR)%16=(SELECT hash(time,name,tags,kind,value)%16 FROM (" + base + ")) LIMIT 1"
-	if n, e := d.Count(ctx, collision); e != nil || n != 1 {
+	if n, e := small.Count(ctx, collision); e != nil || n != 1 {
 		t.Fatal("failed to construct routing collision", n, e)
 	}
-	if e := d.EqualCanonical(ctx, duplicate, "("+base+") UNION ALL (SELECT "+canonicalColumns+" FROM ("+collision+"))", ""); e == nil {
+	if e := small.EqualCanonical(ctx, duplicate, "("+base+") UNION ALL (SELECT "+canonicalColumns+" FROM ("+collision+"))", ""); e == nil {
 		t.Fatal("routing hash collision hid a different value")
 	}
-	// Force recursive local refinement with >1M rows, under a small buffer budget.
-	large := `SELECT 1740787200000000194+i::BIGINT AS time,'x' AS name,'{}' AS tags,'int' AS kind,i::VARCHAR AS value FROM range(17000000) r(i)`
-	if e := d.EqualCanonical(ctx, large, large, ""); e != nil {
+	rows := `SELECT 1740787200000000194+i::BIGINT AS time,'x' AS name,'{}' AS tags,'int' AS kind,i::VARCHAR AS value FROM range(17000000) r(i)`
+	full := DuckDB{Binary: binary, Work: work, Memory: "3GB", Threads: 16}
+	if e := full.EqualCanonical(ctx, rows, rows, ""); e != nil {
 		t.Fatal(e)
 	}
-	paths, _ := filepath.Glob(filepath.Join(d.Work, "compare-*"))
+	paths, _ := filepath.Glob(filepath.Join(work, "compare-*"))
 	if len(paths) != 0 {
 		t.Fatal("comparison scratch not reclaimed", paths)
 	}

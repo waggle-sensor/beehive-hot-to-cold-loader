@@ -1,6 +1,6 @@
 # Developer guide
 
-[Documentation](README.md) · [Architecture](architecture.md) · [Validation](validation.md)
+[Documentation](README.md) · [Architecture](architecture.md) · [CI/CD](ci-cd.md) · [Validation](validation.md)
 
 ## Source map
 
@@ -32,22 +32,14 @@ The coordinator invokes the DuckDB CLI rather than embedding DuckDB's Go driver.
 Run from the service root:
 
 ```sh
-go build -o bin/beehive-hot-to-cold-loader .
-go test -race ./...
+CGO_ENABLED=0 go build -trimpath -o /tmp/beehive-hot-to-cold-loader .
+CGO_ENABLED=1 go test -race -count=1 ./...
 go vet ./...
 ```
 
 The default suite includes fake-worker, journal, HTTP, storage, and observability checks. Native/engine/integration gates need explicit runtime inputs and may skip without them. A passing default suite alone does not validate real Pelican IO, source engine consistency, or full-day capacity.
 
-With an installed DuckDB 2.0.x CLI:
-
-```sh
-SAGE_ARCHIVE_DUCKDB2=/absolute/path/to/duckdb \
-  go test -count=1 -v ./internal/storage \
-  -run 'TestNativeCanonicalPartitionComparison|TestNativeLifecycle|TestNativeBoundedPluginPacking'
-```
-
-Some gates bind local listeners. Use a suitable local/VM environment and dedicated fixtures. See [validation](validation.md) for the matching-engine gate and the [testing index](../testing/README.md) for Python checks and full lifecycle runs.
+Reproduce the CI race and native smoke selections locally with the commands in [CI/CD](ci-cd.md). Some gates bind local listeners. Use a suitable local/VM environment and dedicated fixtures. See [validation](validation.md) for the matching-engine gate and the [testing index](../testing/README.md) for Python checks and full lifecycle/capacity runs.
 
 ## Changing the pipeline
 
