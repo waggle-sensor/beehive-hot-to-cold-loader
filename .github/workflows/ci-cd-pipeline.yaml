@@ -61,9 +61,12 @@ jobs:
         run: |
           "$SAGE_ARCHIVE_DUCKDB2" --version
           "$SAGE_ARCHIVE_DUCKDB2" -no-agent -c "INSTALL httpfs; LOAD httpfs; INSTALL iceberg; LOAD iceberg;"
+          test -x "$SAGE_ARCHIVE_DUCKDB2"
       - name: Run selected native smoke tests
         run: |
           set -o pipefail
+          test -n "$SAGE_ARCHIVE_DUCKDB2"
+          test -x "$SAGE_ARCHIVE_DUCKDB2"
           go test -json -count=1 -timeout=20m ./internal/storage \
             -run '^(TestNativeLifecycle|TestNativeBoundedPluginPacking|TestNativePartitionedNormalization|TestNativeUnsignedVariantProof|TestNativeBoundedComparison)$' \
             | tee native-test.json
@@ -86,6 +89,8 @@ jobs:
               with open("native-test.json", encoding="utf-8") as stream:
                   for line in stream:
                       event = json.loads(line)
+                      if event.get("Package") != "beehive-hot-to-cold-loader/internal/storage":
+                          continue
                       if event.get("Action") in {"pass", "fail", "skip"} and event.get("Test"):
                           outcomes[event["Test"]] = event["Action"]
           except FileNotFoundError:
