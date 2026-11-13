@@ -3,9 +3,110 @@ on:
     types: [published]
   pull_request:
     branches: ["main"]
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
+  go_checks:
+    name: Go checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build production binary
+        run: CGO_ENABLED=0 go build -trimpath -o /tmp/beehive-hot-to-cold-loader .
+      - name: Vet
+        run: go vet ./...
+      - name: Race tests
+        run: |
+          set -o pipefail
+          CGO_ENABLED=1 go test -json -race -count=1 ./... | tee go-test.json
+      - name: Upload Go test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-test-log
+          path: go-test.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  native_smoke:
+    name: Native smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Extract pinned DuckDB CLI
+        run: |
+          docker pull duckdb/duckdb:2.0.0
+          container_id=$(docker create duckdb/duckdb:2.0.0)
+          docker cp "$container_id:/duckdb" "$RUNNER_TEMP/duckdb"
+          docker rm "$container_id"
+          chmod +x "$RUNNER_TEMP/duckdb"
+          echo "SAGE_ARCHIVE_DUCKDB2=$RUNNER_TEMP/duckdb" >> "$GITHUB_ENV"
+      - name: Verify DuckDB and extensions
+        run: |
+          duckdb --version
+          duckdb -c "INSTALL httpfs; LOAD httpfs; INSTALL iceberg; LOAD iceberg;"
+      - name: Run selected native smoke tests
+        run: |
+          set -o pipefail
+          go test -json -count=1 -timeout=20m ./... \
+            -run '^(TestNativeLifecycle|TestNativeBoundedPluginPacking|TestNativePartitionedNormalization|TestNativeUnsignedVariantProof|TestNativeBoundedComparison)$' \
+            | tee native-test.json
+      - name: Require every selected native test to pass
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json
+          import sys
+
+          expected = {
+              "TestNativeLifecycle",
+              "TestNativeBoundedPluginPacking",
+              "TestNativePartitionedNormalization",
+              "TestNativeUnsignedVariantProof",
+              "TestNativeBoundedComparison",
+          }
+          outcomes = {}
+          try:
+              with open("native-test.json", encoding="utf-8") as stream:
+                  for line in stream:
+                      event = json.loads(line)
+                      if event.get("Action") in {"pass", "fail", "skip"} and event.get("Test"):
+                          outcomes[event["Test"]] = event["Action"]
+          except FileNotFoundError:
+              pass
+          failed = {name: outcomes.get(name, "missing") for name in expected if outcomes.get(name) != "pass"}
+          if failed:
+              print("Selected native tests did not all pass:", failed, file=sys.stderr)
+              sys.exit(1)
+          print("All five selected native tests passed.")
+          PY
+      - name: Upload native test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-test-log
+          path: native-test.json
+          if-no-files-found: ignore
+          retention-days: 7
+
   push_to_registry:
     name: Build
+    needs: [go_checks, native_smoke]
+    if: github.event_name == 'pull_request' || github.event_name == 'release'
     uses: waggle-sensor/.github/.github/workflows/build-and-push-docker-image.yml@main
     secrets: inherit
