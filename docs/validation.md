@@ -1,6 +1,6 @@
 # Validation and performance evidence
 
-[Documentation](README.md) · [Developer guide](development.md) · [Harness index](../testing/README.md)
+[Documentation](README.md) · [Developer guide](development.md) · [CI/CD](ci-cd.md) · [Harness index](../testing/README.md)
 
 Commands below run from the service root unless a linked harness says otherwise. Use dedicated fixtures and fresh isolated storage; native gates do not all run in the default unit suite. Detailed historical measurements remain in [the archival plan](https://github.com/seanshahkarami/sage-data-rework/blob/main/plans/12_dynamic_archival_service.md).
 

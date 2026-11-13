@@ -25,7 +25,7 @@ jobs:
         run: CGO_ENABLED=0 go build -trimpath -o /tmp/beehive-hot-to-cold-loader .
       - name: Vet
         run: go vet ./...
-      - name: Race tests
+      - name: Unit/Integration/Race tests
         run: |
           set -o pipefail
           CGO_ENABLED=1 go test -json -race -count=1 ./... | tee go-test.json

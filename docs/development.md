@@ -1,6 +1,6 @@
 # Developer guide
 
-[Documentation](README.md) · [Architecture](architecture.md) · [Validation](validation.md)
+[Documentation](README.md) · [Architecture](architecture.md) · [CI/CD](ci-cd.md) · [Validation](validation.md)
 
 ## Source map
 
@@ -39,18 +39,7 @@ go vet ./...
 
 The default suite includes fake-worker, journal, HTTP, storage, and observability checks. Native/engine/integration gates need explicit runtime inputs and may skip without them. A passing default suite alone does not validate real Pelican IO, source engine consistency, or full-day capacity.
 
-GitHub Actions runs these checks on pull requests to `main`, pushes to `main`, published releases, and manual dispatch. The `Native smoke` job extracts the pinned DuckDB 2.0.0 CLI from the same image used by the Dockerfile, then requires all five native tests below to pass. Both validation jobs must pass before the reusable image publishing workflow can run. Publication retains the existing pull request and release image tags; pushes to `main` and manual dispatch validate without publishing. Test logs are uploaded as seven-day workflow artifacts (`go-test-log` and `native-test-log`). Native test fixtures use isolated runner temporary directories.
-
-With an installed DuckDB 2.0.0 CLI and its `httpfs` and `iceberg` extensions:
-
-```sh
-SAGE_ARCHIVE_DUCKDB2=/absolute/path/to/duckdb \
-  go test -json -count=1 -timeout=20m ./... \
-  -run '^(TestNativeLifecycle|TestNativeBoundedPluginPacking|TestNativePartitionedNormalization|TestNativeUnsignedVariantProof|TestNativeBoundedComparison)$' \
-  | tee native-test.json
-```
-
-The CI native selection is a smoke gate for DuckDB-backed normalization, packing, comparison, and proof behavior. It does not qualify the full lifecycle or capacity. Some gates bind local listeners. Use a suitable local/VM environment and dedicated fixtures. See [validation](validation.md) for the matching-engine gate and the [testing index](../testing/README.md) for Python checks and full lifecycle/capacity runs.
+Reproduce the CI race and native smoke selections locally with the commands in [CI/CD](ci-cd.md). Some gates bind local listeners. Use a suitable local/VM environment and dedicated fixtures. See [validation](validation.md) for the matching-engine gate and the [testing index](../testing/README.md) for Python checks and full lifecycle/capacity runs.
 
 ## Changing the pipeline
 

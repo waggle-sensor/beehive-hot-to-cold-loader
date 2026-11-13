@@ -1,5 +1,7 @@
 # Beehive hot-to-cold loader
 
+[![.github/workflows/ci-cd-pipeline.yaml](https://github.com/waggle-sensor/beehive-hot-to-cold-loader/actions/workflows/ci-cd-pipeline.yaml/badge.svg?event=release)](https://github.com/waggle-sensor/beehive-hot-to-cold-loader/actions/workflows/ci-cd-pipeline.yaml)
+
 Beehive's archival service moves completed UTC days from InfluxDB into an Iceberg v3 warehouse on [Pelican](https://docs.pelicanplatform.org/about-pelican). It verifies the published data before routing queries to cold storage, then deletes the verified hot interval when deletion is enabled and older readers have drained.
 
 The service coordinates with [beehive-influxdb-loader](https://github.com/waggle-sensor/beehive-influxdb-loader) for writer fencing and late measurements, and with
@@ -15,6 +17,7 @@ The service coordinates with [beehive-influxdb-loader](https://github.com/waggle
 | [Operations and recovery](docs/operations.md) | Status, reader leases, stopped writers, cleanup, and troubleshooting |
 | [Metrics and Grafana](docs/metrics.md) | Public Prometheus endpoint, dashboard, alerts, and JSON profile retention |
 | [Developer guide](docs/development.md) | Package responsibilities, local checks, and change invariants |
+| [CI/CD](docs/ci-cd.md) | GitHub Actions validation jobs and image publish rules |
 | [Validation and performance](docs/validation.md) | Native gates, accepted policies, and benchmark methodology |
 | [Testing tools](testing/README.md) | Isolated live and retained-artifact harnesses |
 
