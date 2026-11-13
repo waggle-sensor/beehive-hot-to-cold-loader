@@ -34,10 +34,10 @@ def auth(warehouse):
     import jwt
     u=urlsplit(warehouse)
     if (u.scheme!="https" or not u.netloc or u.query or u.fragment or u.username or u.password
-        or not re.fullmatch(r"/sage/cold-storage-[A-Za-z0-9_-]+/warehouse",u.path)):
+        or not re.fullmatch(r"/sage/(?:cold|cold-test-[A-Za-z0-9_-]+)/lakehouse",u.path)):
         raise ValueError("invalid read-only warehouse")
-    now=int(time.time());prefix=u.path.split("/")[2]
-    return jwt.encode(dict(sub="sage-capacity-reader",aud="ANY",ver="scitoken:2.0",scope="read:/"+prefix,
+    now=int(time.time());prefix=u.path.removeprefix("/sage")
+    return jwt.encode(dict(sub="sage-capacity-reader",aud="ANY",ver="scitoken:2.0",scope="read:"+prefix,
         iss="https://sagecontinuum.org",iat=now-60,nbf=now-60,exp=now+int(os.environ["DAY_TIMEOUT"])+60,jti=uuid.uuid4().hex),
         Path(os.environ["PELICAN_KEY_PATH"]).read_bytes(),algorithm="ES256",headers={"kid":"3cfa"})
 

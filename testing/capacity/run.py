@@ -19,16 +19,14 @@ live=importlib.util.module_from_spec(spec);spec.loader.exec_module(live)
 sys.path.insert(0,str(HERE))
 from monitor import Monitor
 
-SOURCE="https://nrdstor.nationalresearchplatform.org:8443/sage/cold-storage-demo-v3-bounded-full-1793018629285065000/warehouse"
-
 
 def source_url(text):
     from urllib.parse import urlsplit
     import re
     u=urlsplit(text)
     if (u.scheme!="https" or not u.netloc or u.username or u.password or u.query or u.fragment
-        or not re.fullmatch(r"/sage/cold-storage-[A-Za-z0-9_-]+/warehouse",u.path)):
-        raise ValueError("read-only source must be an isolated cold-storage warehouse HTTPS URL")
+        or not re.fullmatch(r"/sage/(?:cold|cold-test-[A-Za-z0-9_-]+)/lakehouse",u.path)):
+        raise ValueError("read-only source must be an HTTPS /sage/cold/lakehouse or /sage/cold-test-<unique>/lakehouse URL")
     return text
 
 
@@ -45,7 +43,7 @@ def prepare(args):
     config=json.loads((root/"private-config.json").read_text())
     config.update(SOURCE_WAREHOUSE=args.source_warehouse,SOURCE_DAY=args.day,HOT_TO_COLD_BEFORE=(day+timedelta(days=1)).isoformat(),
         NATIVE_MEMORY=args.duckdb_memory,DAY_TIMEOUT=str(args.timeout),MAX_PROBE_ROWS="5000",MIN_FREE_GIB=str(args.min_free_gib),MIN_AVAILABLE_GIB=str(args.min_available_gib),
-        EXPECTED_ROWS=str(args.expected_rows if args.expected_rows is not None else (140578674 if args.source_warehouse==SOURCE and args.day=='2025-03-01' else 0)))
+        EXPECTED_ROWS=str(args.expected_rows if args.expected_rows is not None else 0))
     if config["SOURCE_WAREHOUSE"]==config["WAREHOUSE"]:raise ValueError("source must differ from destination")
     live.save(root/"private-config.json",config)
     command=["--state=/state","--warehouse=${WAREHOUSE}","--archive-start=${SOURCE_DAY}","--archive-before=${HOT_TO_COLD_BEFORE}",
@@ -174,7 +172,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--prepare-only",action="store_true");p.add_argument("--prepared",type=Path);p.add_argument("--stop",type=Path)
     p.add_argument("--strings-only",action="store_true",help="small isolated Influx string round-trip; no historical scan or archival")
-    p.add_argument("--run-dir",type=Path);p.add_argument("--day",default="2025-03-01");p.add_argument("--source-warehouse",default=SOURCE)
+    p.add_argument("--run-dir",type=Path);p.add_argument("--day",default="2025-03-01");p.add_argument("--source-warehouse",help="audited read-only source URL ending in /lakehouse; required for preparation")
     p.add_argument("--origin",default="https://nrdstor.nationalresearchplatform.org:8443/sage")
     p.add_argument("--pelican-key",type=Path,default=live.WORKSPACE/"honeyhouse-config/applications/waggle-access/pelican/issuer-key.pem")
     p.add_argument("--duckdb",type=Path,default=live.ARCHIVER/"bin/duckdb")
@@ -182,13 +180,14 @@ def main():
     p.add_argument("--influx-memory",default="10g");p.add_argument("--probe-memory",default="4g")
     p.add_argument("--min-free-gib",type=int,default=32);p.add_argument("--min-available-gib",type=int,default=10)
     p.add_argument("--timeout",type=int,default=21600)
-    p.add_argument("--expected-rows",type=int,help="audited row count; default March 1 source requires 140578674")
+    p.add_argument("--expected-rows",type=int,help="optional audited source-day row count")
     args=p.parse_args()
     if args.expected_rows is not None and args.expected_rows<1:p.error("positive expected row count required")
     if min(args.min_free_gib,args.min_available_gib,args.timeout)<1:p.error("positive resource floors/deadline required")
     if args.prepared and (args.prepare_only or args.run_dir or args.strings_only):p.error("prepared run cannot be combined with preparation flags; its saved kind determines execution scope")
     if args.stop:
         value=Run(args.stop);value.compose("stop");value.stop_probes();return
+    if not args.prepared and not args.source_warehouse:p.error("--source-warehouse is required when preparing a new run")
     root=args.prepared or prepare(args)
     print("Private archival validation run:",root,flush=True)
     if not args.prepare_only:Run(root).execute()

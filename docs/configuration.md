@@ -10,7 +10,7 @@ Run `beehive-hot-to-cold-loader --help` for the executable's flag reference. Fla
 | --- | --- | --- |
 | `--addr` | `HOT_TO_COLD_ADDR` | `:10001` |
 | `--state` | `HOT_TO_COLD_STATE` | `./state`; private, persistent, outside `/node-data` |
-| `--warehouse` | `HOT_TO_COLD_WAREHOUSE` | Required; `https://host/sage/cold-storage-archive-<unique>/warehouse` |
+| `--warehouse` | `HOT_TO_COLD_WAREHOUSE` | Required; `https://host/sage/cold/lakehouse` |
 | `--archive-start` | `HOT_TO_COLD_START` | Required; first UTC day whose coverage is managed |
 | `--archive-before` | — | Unset; optional exclusive day bounding new archive scheduling |
 | `--bootstrap-warehouse` | — | Unset; audited read-only source, paired with `--bootstrap-before` |

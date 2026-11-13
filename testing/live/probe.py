@@ -290,11 +290,12 @@ def check_api(label, rows):
 def token(write=False):
     import jwt
     warehouse = os.environ["WAREHOUSE"]
-    prefix = urlsplit(warehouse).path.split("/")[2]
-    if not re.fullmatch("cold-storage-archive-live-"+os.environ["RUN_ID"], prefix):
+    warehouse_path = urlsplit(warehouse).path
+    prefix = warehouse_path.split("/")[2]
+    if warehouse_path != "/sage/cold-test-"+os.environ["RUN_ID"]+"/lakehouse":
         raise AssertionError("remote prefix is not this run's generated prefix")
     now = int(time.time())
-    claims = dict(sub="sage-live-gate", aud="ANY", ver="scitoken:2.0", scope="read:/"+prefix+(" write:/"+prefix if write else ""),
+    claims = dict(sub="sage-live-gate", aud="ANY", ver="scitoken:2.0", scope="read:/"+prefix+"/lakehouse"+(" write:/"+prefix+"/lakehouse" if write else ""),
                   iss="https://sagecontinuum.org", iat=now-60, nbf=now-60, exp=now+900, jti=uuid.uuid4().hex)
     return jwt.encode(claims, Path(os.environ["PELICAN_KEY_PATH"]).read_bytes(), algorithm="ES256", headers={"kid":"3cfa"})
 

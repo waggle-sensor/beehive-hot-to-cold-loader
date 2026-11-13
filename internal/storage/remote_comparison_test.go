@@ -36,7 +36,7 @@ func TestRemoteBenchmarkObjectIntegrityAndReadOnly(t *testing.T) {
 	if e := verifyRemoteObjectHashes(context.Background(), &reader, target); e == nil {
 		t.Fatal("changed bytes accepted")
 	}
-	target.FileSHA256 = map[string]string{"https://outside.test/sage/cold-storage-other/warehouse/sage/obs/data/test.parquet": hex.EncodeToString(hash[:])}
+	target.FileSHA256 = map[string]string{"https://outside.test/sage/cold-test-other/lakehouse/sage/obs/data/test.parquet": hex.EncodeToString(hash[:])}
 	if e := verifyRemoteObjectHashes(context.Background(), &reader, target); e == nil {
 		t.Fatal("cross-origin object accepted")
 	}

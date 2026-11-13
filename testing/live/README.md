@@ -17,7 +17,7 @@ The script prints its private run directory. Read `run.json` and `reports/releas
 Each invocation allocates a UUID, a new Compose project, a new local state directory, and a new managed warehouse:
 
 ```text
-https://nrdstor.nationalresearchplatform.org:8443/sage/cold-storage-archive-live-<uuid>/warehouse
+https://nrdstor.nationalresearchplatform.org:8443/sage/cold-test-<uuid>/lakehouse
 ```
 
 `--origin https://host[:port]/sage` changes the origin and keeps the generated prefix. The script creates a new warehouse and Compose project on every invocation. Host ports stay unpublished. The stack attaches no existing volumes or brokers. The `waggle` bucket exists only inside this run's Influx container. The observations are synthetic March 1 and March 2 points. The default 30-day hot retention stays in force, and `--archive-before=2025-03-02` limits the archive to March 1.

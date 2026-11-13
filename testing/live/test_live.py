@@ -22,7 +22,7 @@ sys.path.insert(0,str(run.WORKSPACE / "sage-data-client/src"))
 class IsolationTests(unittest.TestCase):
     def test_origin_and_local_paths_cannot_select_existing_storage(self):
         self.assertEqual(run.origin_url("https://origin:8443/sage"),"https://origin:8443/sage")
-        for url in ("http://origin/sage","https://origin/node-data","https://origin/sage/cold-storage-demo/warehouse",
+        for url in ("http://origin/sage","https://origin/node-data","https://origin/sage/cold-storage-demo/lakehouse",
                     "https://origin/sage/../sage","https://name:secret@origin/sage","https://origin/sage?authz=secret"):
             with self.subTest(url=url),self.assertRaises(ValueError):run.origin_url(url)
         with self.assertRaises(ValueError):run.local("/node-data/fixture")
@@ -34,11 +34,11 @@ class IsolationTests(unittest.TestCase):
     def test_saved_run_cannot_target_demo_project_or_warehouse(self):
         with TemporaryDirectory() as directory:
             root=Path(directory).resolve();run_id="a"*32
-            config=dict(RUN_ID=run_id,LIVE_ROOT=str(root),WAREHOUSE="https://origin/sage/cold-storage-archive-live-"+run_id+"/warehouse")
+            config=dict(RUN_ID=run_id,LIVE_ROOT=str(root),WAREHOUSE="https://origin/sage/cold-test-"+run_id+"/lakehouse")
             manifest=dict(project="sage-archive-live-"+run_id,warehouse=config["WAREHOUSE"],origin="https://origin/sage")
             run.save(root/"private-config.json",config);run.save(root/"run.json",manifest)
             self.assertEqual(run.Run(root).manifest["project"],manifest["project"])
-            for field,value in (("project","demo"),("warehouse","https://origin/sage/cold-storage-demo/warehouse")):
+            for field,value in (("project","demo"),("warehouse","https://origin/sage/cold-storage-demo/lakehouse")):
                 bad={**manifest,field:value};run.save(root/"run.json",bad)
                 with self.subTest(field=field),self.assertRaises(ValueError):run.Run(root)
             self.assertEqual((root/"private-config.json").stat().st_mode&0o777,0o600)
@@ -72,7 +72,7 @@ class IsolationTests(unittest.TestCase):
     def test_failed_readback_never_enables_deletion_and_stops_only_own_stack(self):
         with TemporaryDirectory() as directory:
             root=Path(directory).resolve();run_id="b"*32
-            config=dict(RUN_ID=run_id,LIVE_ROOT=str(root),WAREHOUSE="https://origin/sage/cold-storage-archive-live-"+run_id+"/warehouse",
+            config=dict(RUN_ID=run_id,LIVE_ROOT=str(root),WAREHOUSE="https://origin/sage/cold-test-"+run_id+"/lakehouse",
                         COORDINATE_ONLY="true",DELETE_ENABLED="false")
             manifest=dict(project="sage-archive-live-"+run_id,warehouse=config["WAREHOUSE"],origin="https://origin/sage",phase="prepared",passed=False)
             run.save(root/"private-config.json",config);run.save(root/"run.json",manifest)
@@ -144,7 +144,7 @@ class VerifierTests(unittest.TestCase):
             with self.assertRaises(AssertionError):probe.source_rows()
 
     def test_warehouse_audit_requires_v3_variant_map_ns_and_day_partition(self):
-        root="https://origin/sage/cold-storage-archive-live-"+"a"*32+"/warehouse"
+        root="https://origin/sage/cold-test-"+"a"*32+"/lakehouse"
         body={"format-version":3,"location":root+"/sage/obs","current-schema-id":0,
               "schemas":[{"schema-id":0,"fields":[{"id":1,"name":"time","type":"timestamptz_ns"},
                 {"id":11,"name":"value","type":"variant"},{"id":10,"name":"meta","type":{"type":"map"}}]}],

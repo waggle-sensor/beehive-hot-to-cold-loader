@@ -12,7 +12,7 @@ import (
 
 func testStore(t *testing.T) *Store {
 	t.Helper()
-	s, e := Open(filepath.Join(t.TempDir(), "control.db"), "waggle", "https://test/sage/cold-storage-archive-test/warehouse", "2025-03-01")
+	s, e := Open(filepath.Join(t.TempDir(), "control.db"), "waggle", "https://test/sage/cold-test-test/lakehouse", "2025-03-01")
 	if e != nil {
 		t.Fatal(e)
 	}

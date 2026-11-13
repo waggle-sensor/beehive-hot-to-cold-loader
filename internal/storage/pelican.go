@@ -31,12 +31,12 @@ import (
 // Pelican confines every IO operation and token to a configured isolated root.
 // Data objects stream through disk. Remove is disabled; maintenance is separate.
 type Pelican struct {
-	Base     *url.URL // the base URL of the Pelican instance
-	Prefix   string // the prefix of the warehouse
+	Base     *url.URL          // the base URL of the Pelican instance
+	Prefix   string            // the prefix of the warehouse
 	Key      *ecdsa.PrivateKey // the private key for the Pelican instance
-	Client   *http.Client // the HTTP client
-	Scratch  string // the scratch directory for the Pelican instance
-	ReadOnly bool // whether the Pelican instance is read-only
+	Client   *http.Client      // the HTTP client
+	Scratch  string            // the scratch directory for the Pelican instance
+	ReadOnly bool              // whether the Pelican instance is read-only
 }
 
 // NewPelican opens a read-write client for the destination warehouse.
@@ -57,12 +57,11 @@ func newPelican(warehouse, keyPath, scratch string, readOnly bool) (*Pelican, er
 	}
 	clean := path.Clean(u.Path)
 	parts := strings.Split(strings.Trim(clean, "/"), "/")
-	allowedPrefix := regexp.MustCompile(`^cold-storage-archive-[A-Za-z0-9_-]+$`)
-	if readOnly {
-		allowedPrefix = regexp.MustCompile(`^cold-storage-[A-Za-z0-9_-]+$`)
-	}
-	if u.Scheme != "https" || u.Host == "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil || u.RawPath != "" || clean != u.Path || len(parts) != 3 || parts[0] != "sage" || !allowedPrefix.MatchString(parts[1]) || parts[2] != "warehouse" || strings.Contains(parts[1], "..") {
-		return nil, errors.New("warehouse must be https://host/sage/cold-storage-archive-<unique>/warehouse")
+	allowedPrefix := regexp.MustCompile(`^cold-test-[A-Za-z0-9_-]+$`)
+	validRoot := len(parts) == 3 && parts[0] == "sage" && (parts[1] == "cold" || allowedPrefix.MatchString(parts[1]))
+	validSuffix := len(parts) == 3 && parts[2] == "lakehouse"
+	if u.Scheme != "https" || u.Host == "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.User != nil || u.RawPath != "" || clean != u.Path || !validRoot || !validSuffix {
+		return nil, errors.New("warehouse must be https://host/sage/cold/lakehouse or https://host/sage/cold-test-<unique>/lakehouse")
 	}
 	raw, e := os.ReadFile(keyPath)
 	if e != nil {
@@ -82,7 +81,9 @@ func newPelican(warehouse, keyPath, scratch string, readOnly bool) (*Pelican, er
 		return nil, errors.New("Pelican ES256 key required")
 	}
 	c := &http.Client{Timeout: 20 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	return &Pelican{Base: u, Prefix: "/" + parts[1], Key: k, Client: c, Scratch: scratch, ReadOnly: readOnly}, nil
+	// Scope lakehouse tokens to the entire root, relative to /sage.
+	prefix := strings.TrimPrefix(u.Path, "/sage")
+	return &Pelican{Base: u, Prefix: prefix, Key: k, Client: c, Scratch: scratch, ReadOnly: readOnly}, nil
 }
 
 // Token returns a short-lived bearer token. Write tokens are minted only for PUT.

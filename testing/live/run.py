@@ -122,7 +122,7 @@ def prepare(args):
         pin_application_images(root / "compose.yml")
     origin = origin_url(args.origin)
     config = {"RUN_ID": run_id, "LIVE_ROOT": str(root), "PELICAN_KEY": str(key),
-              "WAREHOUSE": origin + "/cold-storage-archive-live-" + run_id + "/warehouse",
+              "WAREHOUSE": origin + "/cold-test-" + run_id + "/lakehouse",
               "ARCHIVER_SOURCE": str(root / "archiver-build"), "API_SOURCE": str(root / "api-build"),
               "ARCHIVER_IMAGE": images.get("archiver", ""), "API_IMAGE": images.get("api", ""),
               "LOADER_IMAGE": images.get("loader", ""),
@@ -148,7 +148,7 @@ class Run:
         run_id = self.config["RUN_ID"]
         if not re.fullmatch("[a-f0-9]{32}", run_id):
             raise ValueError("invalid isolated run ID")
-        expected = origin_url(self.manifest["origin"]) + "/cold-storage-archive-live-" + run_id + "/warehouse"
+        expected = origin_url(self.manifest["origin"]) + "/cold-test-" + run_id + "/lakehouse"
         if (self.config["WAREHOUSE"] != expected or self.manifest["warehouse"] != expected
                 or self.manifest["project"] != "sage-archive-live-" + run_id
                 or self.config["LIVE_ROOT"] != str(self.root)):

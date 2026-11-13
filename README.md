@@ -52,7 +52,7 @@ After every writer for the selected bucket participates in coordination:
 ```sh
 ./bin/beehive-hot-to-cold-loader \
   --state /var/lib/beehive-hot-to-cold-loader \
-  --warehouse 'https://<host>/sage/cold-storage-archive-<unique>/warehouse' \
+  --warehouse 'https://<host>/sage/cold/lakehouse' \
   --archive-start 2025-03-01 --archive-before 2025-03-02 \
   --influx-url http://influxdb:8086 \
   --org waggle --bucket waggle --bucket-id '<source bucket ID>' \

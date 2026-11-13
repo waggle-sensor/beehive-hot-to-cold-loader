@@ -43,7 +43,7 @@ func main() {
 func run() error {
 	addr := flag.String("addr", env("HOT_TO_COLD_ADDR", ":10001"), "internal coordination listen address")
 	state := flag.String("state", env("HOT_TO_COLD_STATE", "./state"), "durable private state and staging directory")
-	warehouse := flag.String("warehouse", env("HOT_TO_COLD_WAREHOUSE", ""), "isolated https://host/sage/cold-storage-archive-<unique>/warehouse")
+	warehouse := flag.String("warehouse", env("HOT_TO_COLD_WAREHOUSE", ""), "isolated https://host/sage/cold/lakehouse")
 	start := flag.String("archive-start", env("HOT_TO_COLD_START", ""), "explicit first UTC day covered; history before it is not assumed")
 	archiveBefore := flag.String("archive-before", "", "optional exclusive UTC day to bound validation/backfill scheduling")
 	readLeaseDuration := flag.Duration("read-lease-duration", control.DefaultReadLeaseDuration, "renewable read lease lifetime; 1m deletion grace follows unrenewed expiry (positive, at most 24h)")

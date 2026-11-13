@@ -2,19 +2,15 @@
 
 This clones one real historical day, read-only, into a fresh private Influx fixture, then runs the archiver through publication, remote verification, routing, reverification, and confirmed deletion. Each run gets a new UUID directory and a new managed Pelican prefix. The original warehouse and demo stack stay unchanged.
 
-From the workspace root, on a host with Docker:
+From the workspace root, on a host with Docker, select an existing audited source lakehouse explicitly. Replace the URL below with its actual location; there is no default historical source and no automatic relocation of old data.
 
-```sh
-python3 beehive-hot-to-cold-loader/testing/capacity/run.py
+```fish
+set -gx CAPACITY_SOURCE 'https://<host>/sage/cold-test-<audited-source>/lakehouse'
+python3 beehive-hot-to-cold-loader/testing/capacity/run.py \
+  --source-warehouse "$CAPACITY_SOURCE"
 ```
 
-The default source is March 1, 2025 in the adopted warehouse:
-
-```text
-https://nrdstor.nationalresearchplatform.org:8443/sage/cold-storage-demo-v3-bounded-full-1793018629285065000/warehouse
-```
-
-That day was audited at 140,578,674 rows. The harness measures the selected snapshot and requires that total for the default source and day. `--expected-rows` supplies another audited baseline. `--source-warehouse` and `--day YYYY-MM-DD` select another complete historical day. The source snapshot URL is pinned before extraction, and the source credentials are read-only. This path does not generate a synthetic 140-million-row day, and it does not start RabbitMQ or the loader. Those integrations are covered by the live gate.
+The source must end in `/lakehouse`. The production-shaped `/sage/cold/lakehouse` root is also accepted read-only. `--day YYYY-MM-DD` selects the complete historical day (default March 1, 2025). Supply `--expected-rows` with that source/day's audited row count to enforce an additional known baseline. No row count is inferred from an old URL. The source snapshot URL is pinned before extraction, and source credentials are read-only. Full source/fixture multiset checks remain mandatory. This path does not generate a synthetic 140-million-row day and does not start RabbitMQ or the loader; those integrations are covered by the live gate.
 
 The issuer key, DuckDB 2.0 Linux CLI, and origin default to the same paths as the live gate. Override them with `--pelican-key`, `--duckdb`, and `--origin`. Docker needs the base images and their dependencies.
 
@@ -24,6 +20,7 @@ Pass `--run-dir` as a new directory on a filesystem with enough free space:
 
 ```sh
 python3 beehive-hot-to-cold-loader/testing/capacity/run.py \
+  --source-warehouse "$CAPACITY_SOURCE" \
   --run-dir /path/to/large-volume/sage-full-day-20250301-unique
 ```
 
@@ -63,6 +60,7 @@ After the API starts, the runner waits up to 240 seconds for `/metrics`, polling
 
    ```sh
    python3 beehive-hot-to-cold-loader/testing/capacity/run.py \
+     --source-warehouse "$CAPACITY_SOURCE" \
      --strings-only --run-dir /path/to/new-isolated-string-check
    ```
 
@@ -113,7 +111,7 @@ Accepted full-day measurements, including the successive dictionary, reconciliat
 ## Preparation and stop
 
 ```sh
-python3 beehive-hot-to-cold-loader/testing/capacity/run.py --prepare-only
+python3 beehive-hot-to-cold-loader/testing/capacity/run.py --prepare-only --source-warehouse "$CAPACITY_SOURCE"
 python3 beehive-hot-to-cold-loader/testing/capacity/run.py --prepared /absolute/path/to/prepared-directory
 python3 beehive-hot-to-cold-loader/testing/capacity/run.py --stop /absolute/path/to/run-directory
 ```
