@@ -56,14 +56,15 @@ jobs:
           docker rm "$container_id"
           chmod +x "$RUNNER_TEMP/duckdb"
           echo "SAGE_ARCHIVE_DUCKDB2=$RUNNER_TEMP/duckdb" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
       - name: Verify DuckDB and extensions
         run: |
-          duckdb --version
-          duckdb -c "INSTALL httpfs; LOAD httpfs; INSTALL iceberg; LOAD iceberg;"
+          "$SAGE_ARCHIVE_DUCKDB2" --version
+          "$SAGE_ARCHIVE_DUCKDB2" -no-agent -c "INSTALL httpfs; LOAD httpfs; INSTALL iceberg; LOAD iceberg;"
       - name: Run selected native smoke tests
         run: |
           set -o pipefail
-          go test -json -count=1 -timeout=20m ./... \
+          go test -json -count=1 -timeout=20m ./internal/storage \
             -run '^(TestNativeLifecycle|TestNativeBoundedPluginPacking|TestNativePartitionedNormalization|TestNativeUnsignedVariantProof|TestNativeBoundedComparison)$' \
             | tee native-test.json
       - name: Require every selected native test to pass
