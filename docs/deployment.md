@@ -37,8 +37,8 @@ A bootstrap source is accepted when it declares this convention, or when it is u
 
 ## Table identity
 
-The loader and API must agree on `ICEBERG_NAMESPACE` (default `sage`) and
-`ICEBERG_TABLE_NAME` (default `observations`). A fresh production warehouse
+The loader and API must agree on `COLD_NAMESPACE` (default `sage`) and
+`COLD_TABLE_NAME` (default `observations`). A fresh production warehouse
 therefore creates `sage.observations` at `<warehouse>/sage/observations/`.
 Configure both services together before initialization. Changing these values
 does not rename an existing Iceberg table or migrate its journal/catalog.

@@ -21,10 +21,10 @@ sys.path.insert(0,str(run.WORKSPACE / "sage-data-client/src"))
 
 class IsolationTests(unittest.TestCase):
     def test_configured_table_path_is_scoped(self):
-        with patch.dict(os.environ, ICEBERG_NAMESPACE="telemetry", ICEBERG_TABLE_NAME="readings"):
+        with patch.dict(os.environ, COLD_NAMESPACE="telemetry", COLD_TABLE_NAME="readings"):
             self.assertEqual(probe.table_path(), "/telemetry/readings")
         for value in ("", "../other", "a/b", "a.b", "with space"):
-            with patch.dict(os.environ, ICEBERG_NAMESPACE=value, ICEBERG_TABLE_NAME="observations"):
+            with patch.dict(os.environ, COLD_NAMESPACE=value, COLD_TABLE_NAME="observations"):
                 with self.assertRaises(ValueError):probe.table_path()
 
     def test_origin_and_local_paths_cannot_select_existing_storage(self):

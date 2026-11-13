@@ -305,8 +305,8 @@ def sqlquote(value):
 
 
 def table_path():
-    namespace = os.environ.get("ICEBERG_NAMESPACE", "sage")
-    name = os.environ.get("ICEBERG_TABLE_NAME", "observations")
+    namespace = os.environ.get("COLD_NAMESPACE", "sage")
+    name = os.environ.get("COLD_TABLE_NAME", "observations")
     if not all(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in (namespace, name)):
         raise ValueError("invalid Iceberg namespace or table name")
     return "/" + namespace + "/" + name

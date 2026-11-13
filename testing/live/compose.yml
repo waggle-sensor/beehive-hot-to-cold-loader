@@ -57,8 +57,8 @@ services:
       - --keep-staging=true
     environment:
       HOT_TO_COLD_LOADER_TOKEN: ${LOADER_TOKEN:?}
-      ICEBERG_NAMESPACE: ${ICEBERG_NAMESPACE:-sage}
-      ICEBERG_TABLE_NAME: ${ICEBERG_TABLE_NAME:-observations}
+      COLD_NAMESPACE: ${COLD_NAMESPACE:-sage}
+      COLD_TABLE_NAME: ${COLD_TABLE_NAME:-observations}
       HOT_TO_COLD_READER_TOKEN: ${READER_TOKEN:?}
       HOT_TO_COLD_ADMIN_TOKEN: ${ADMIN_TOKEN:?}
       INFLUX_TOKEN: ${INFLUX_TOKEN:?}
@@ -98,8 +98,8 @@ services:
       INFLUXDB_BUCKET: waggle
       COLD_FRONTIER: dynamic
       COLD_WAREHOUSE: ${WAREHOUSE:?}
-      ICEBERG_NAMESPACE: ${ICEBERG_NAMESPACE:-sage}
-      ICEBERG_TABLE_NAME: ${ICEBERG_TABLE_NAME:-observations}
+      COLD_NAMESPACE: ${COLD_NAMESPACE:-sage}
+      COLD_TABLE_NAME: ${COLD_TABLE_NAME:-observations}
       HOT_TO_COLD_LOADER_URL: http://archiver:10001
       HOT_TO_COLD_LOADER_READER_TOKEN: ${READER_TOKEN:?}
       HOT_TO_COLD_LOADER_READER_OWNER: ${RUN_ID:?}-api
@@ -114,8 +114,8 @@ services:
     environment:
       RUN_ID: ${RUN_ID:?}
       WAREHOUSE: ${WAREHOUSE:?}
-      ICEBERG_NAMESPACE: ${ICEBERG_NAMESPACE:-sage}
-      ICEBERG_TABLE_NAME: ${ICEBERG_TABLE_NAME:-observations}
+      COLD_NAMESPACE: ${COLD_NAMESPACE:-sage}
+      COLD_TABLE_NAME: ${COLD_TABLE_NAME:-observations}
       INFLUX_TOKEN: ${INFLUX_TOKEN:?}
       BROKER_PASSWORD: ${BROKER_PASSWORD:?}
       LOADER_TOKEN: ${LOADER_TOKEN:?}

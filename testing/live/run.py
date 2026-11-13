@@ -122,8 +122,8 @@ def prepare(args):
         pin_application_images(root / "compose.yml")
     origin = origin_url(args.origin)
     config = {"RUN_ID": run_id, "LIVE_ROOT": str(root), "PELICAN_KEY": str(key),
-              "ICEBERG_NAMESPACE": os.environ.get("ICEBERG_NAMESPACE", "sage"),
-              "ICEBERG_TABLE_NAME": os.environ.get("ICEBERG_TABLE_NAME", "observations"),
+              "COLD_NAMESPACE": os.environ.get("COLD_NAMESPACE", "sage"),
+              "COLD_TABLE_NAME": os.environ.get("COLD_TABLE_NAME", "observations"),
               "WAREHOUSE": origin + "/cold-test-" + run_id + "/lakehouse",
               "ARCHIVER_SOURCE": str(root / "archiver-build"), "API_SOURCE": str(root / "api-build"),
               "ARCHIVER_IMAGE": images.get("archiver", ""), "API_IMAGE": images.get("api", ""),

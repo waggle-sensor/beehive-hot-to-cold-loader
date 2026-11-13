@@ -79,7 +79,7 @@ Fresh runs fix the native thread policy. Normalization uses sixteen threads, mer
 
 ## Configurable table identity
 
-New runs capture `ICEBERG_NAMESPACE` and `ICEBERG_TABLE_NAME` from the preparing
+New runs capture `COLD_NAMESPACE` and `COLD_TABLE_NAME` from the preparing
 shell, defaulting to `sage` and `observations`, and forward them to the archiver,
 API, and probe. All three derive the table path from those saved settings.
 Set them before preparation to exercise a custom table in an isolated test

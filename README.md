@@ -63,8 +63,8 @@ After every writer for the selected bucket participates in coordination:
 This bounds new archive scheduling to March 1; it does not disable recovery or late corrections. Choose coverage dates matching the source history. Use `--coordinate-only` during writer migration. Follow the [deployment guide](docs/deployment.md) before enabling archival or deletion against a real bucket.
 
 The table defaults to `sage.observations`, stored beneath
-`<warehouse>/sage/observations/`. Configure `ICEBERG_NAMESPACE` and
-`ICEBERG_TABLE_NAME` (or `--namespace` and `--table-name`) to select another
+`<warehouse>/sage/observations/`. Configure `COLD_NAMESPACE` and
+`COLD_TABLE_NAME` (or `--namespace` and `--table-name`) to select another
 table, and configure the API with the same values. See
 [configuration](docs/configuration.md#listener-and-persistent-identity).
 
