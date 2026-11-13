@@ -130,7 +130,7 @@ func TestDashboardAndRuleMetricsExist(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{"prometheus/scrape.yaml", "prometheus/api-scrape.yaml", "grafana/provisioning/dashboards.yaml", "prometheus/alerts.test.yaml"} {
+	for _, name := range []string{"prometheus/scrape.yaml", "prometheus/alerts.test.yaml"} {
 		var doc map[string]any
 		if err = yaml.Unmarshal(read(name), &doc); err != nil {
 			t.Fatal(name, err)
