@@ -336,7 +336,7 @@ func TestBootstrapReaderRequiresLakehouse(t *testing.T) {
 		"https://pelican.test/sage/cold-storage-archive-test/lakehouse",
 		"https://pelican.test/sage/cold-storage-demo/lakehouse",
 		"https://pelican.test/sage/cold-test-test/warehouse",
-		"https://pelican.test/sage/cold-storage-demo/warehouse",
+		"https://pelican.test/sage/cold-storage-demo/lakehouse",
 	} {
 		if _, err := NewPelicanReader(location, filepath.Join(root, "key.pem"), root, TableIdentity{}); err == nil {
 			t.Fatal("bootstrap accepted a non-lakehouse root", location)

@@ -15,7 +15,7 @@ Run `beehive-hot-to-cold-loader --help` for the executable's flag reference. Fla
 | `--table-name` | `COLD_TABLE_NAME` | `observations`; Iceberg table name |
 | `--archive-start` | `HOT_TO_COLD_START` | Required; first UTC day whose coverage is managed |
 | `--archive-before` | — | Unset; optional exclusive day bounding new archive scheduling |
-| `--bootstrap-warehouse` | — | Unset; audited read-only source, paired with `--bootstrap-before` |
+| `--bootstrap-lakehouse` | — | Unset; audited read-only source, paired with `--bootstrap-before` |
 | `--bootstrap-before` | — | Unset; exclusive end of audited source coverage, after archive start |
 
 Set the same `COLD_NAMESPACE` and `COLD_TABLE_NAME` on the loader and
@@ -33,7 +33,7 @@ also belong to the configured table. This is configuration for a fresh table,
 not an automatic rename or migration of existing data. To keep reading an
 existing table, configure its actual namespace and name explicitly.
 
-Bucket, warehouse, and coverage start are bound to the control journal. Source bucket ID, organization, and bootstrap settings are also durably bound during archival startup. Do not repoint existing state at another source or warehouse. A new catalog refuses to silently adopt an occupied remote table root.
+Bucket, lakehouse, and coverage start are bound to the control journal. Source bucket ID, organization, and bootstrap settings are also durably bound during archival startup. Do not repoint existing state at another source or lakehouse. A new catalog refuses to silently adopt an occupied remote table root.
 
 ## Source and native tools
 
@@ -99,6 +99,6 @@ These are settings in the sibling applications, not environment variables read b
 | Application | Settings |
 | --- | --- |
 | `beehive-influxdb-loader` | `HOT_TO_COLD_LOADER_URL`, `HOT_TO_COLD_LOADER_LOADER_TOKEN`, `HOT_TO_COLD_LOADER_LOADER_OWNER` |
-| `beehive-data-api` | `COLD_FRONTIER=dynamic`, `HOT_TO_COLD_LOADER_URL`, `HOT_TO_COLD_LOADER_READER_TOKEN`, `HOT_TO_COLD_LOADER_READER_OWNER`, `COLD_WAREHOUSE` |
+| `beehive-data-api` | `COLD_FRONTIER=dynamic`, `HOT_TO_COLD_LOADER_URL`, `HOT_TO_COLD_LOADER_READER_TOKEN`, `HOT_TO_COLD_LOADER_READER_OWNER`, `COLD_LAKEHOUSE` |
 
-The Influx loader's `HOT_TO_COLD_LOADER_LOADER_TOKEN` must equal this service's `HOT_TO_COLD_LOADER_TOKEN`. The data API's `HOT_TO_COLD_LOADER_READER_TOKEN` must equal this service's `HOT_TO_COLD_READER_TOKEN`. Use distinct process owners. The API's warehouse must match the managed warehouse; set `COLD_BORDER` in dynamic mode. An uncoordinated loader can still write Influx when its optional coordination settings are unset, so migrate all writers and restrict bypass access before asserting `--writers-coordinated`.
+The Influx loader's `HOT_TO_COLD_LOADER_LOADER_TOKEN` must equal this service's `HOT_TO_COLD_LOADER_TOKEN`. The data API's `HOT_TO_COLD_LOADER_READER_TOKEN` must equal this service's `HOT_TO_COLD_READER_TOKEN`. Use distinct process owners. The API's lakehouse must match the managed lakehouse; set `COLD_BORDER` in dynamic mode. An uncoordinated loader can still write Influx when its optional coordination settings are unset, so migrate all writers and restrict bypass access before asserting `--writers-coordinated`.

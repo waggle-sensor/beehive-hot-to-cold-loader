@@ -80,10 +80,10 @@ class GuardTests(unittest.TestCase):
     def test_api_startup_failure_does_not_enable_deletion(self):
         with TemporaryDirectory() as directory:
             root=Path(directory).resolve();run_id='e'*32
-            config=dict(RUN_ID=run_id,LIVE_ROOT=str(root),WAREHOUSE='https://origin/sage/cold-test-'+run_id+'/lakehouse',
-                SOURCE_WAREHOUSE=TEST_SOURCE,COORDINATE_ONLY='true',DELETE_ENABLED='false')
+            config=dict(RUN_ID=run_id,LIVE_ROOT=str(root),LAKEHOUSE='https://origin/sage/cold-test-'+run_id+'/lakehouse',
+                SOURCE_LAKEHOUSE=TEST_SOURCE,COORDINATE_ONLY='true',DELETE_ENABLED='false')
             runner.live.save(root/'private-config.json',config)
-            runner.live.save(root/'run.json',dict(project='sage-archive-live-'+run_id,warehouse=config['WAREHOUSE'],origin='https://origin/sage',phase='prepared',kind='full-day',passed=False))
+            runner.live.save(root/'run.json',dict(project='sage-archive-live-'+run_id,lakehouse=config['LAKEHOUSE'],origin='https://origin/sage',phase='prepared',kind='full-day',passed=False))
             (root/'reports').mkdir();runner.live.save(root/'reports/bootstrap.json',{'bucket_id':'isolated'})
             run=runner.Run(root);stages=[]
             def probe(stage):
@@ -189,10 +189,10 @@ class GuardTests(unittest.TestCase):
     def test_strings_only_never_starts_archival_or_source_scan(self):
         with TemporaryDirectory() as directory:
             root=Path(directory).resolve();run_id='d'*32
-            config=dict(RUN_ID=run_id,LIVE_ROOT=str(root),WAREHOUSE='https://origin/sage/cold-test-'+run_id+'/lakehouse',
-                SOURCE_WAREHOUSE=TEST_SOURCE,COORDINATE_ONLY='true',DELETE_ENABLED='false')
+            config=dict(RUN_ID=run_id,LIVE_ROOT=str(root),LAKEHOUSE='https://origin/sage/cold-test-'+run_id+'/lakehouse',
+                SOURCE_LAKEHOUSE=TEST_SOURCE,COORDINATE_ONLY='true',DELETE_ENABLED='false')
             runner.live.save(root/'private-config.json',config)
-            runner.live.save(root/'run.json',dict(project='sage-archive-live-'+run_id,warehouse=config['WAREHOUSE'],origin='https://origin/sage',phase='prepared',kind='string-roundtrip',passed=False))
+            runner.live.save(root/'run.json',dict(project='sage-archive-live-'+run_id,lakehouse=config['LAKEHOUSE'],origin='https://origin/sage',phase='prepared',kind='string-roundtrip',passed=False))
             (root/'reports').mkdir();runner.live.save(root/'reports/bootstrap.json',{'bucket_id':'isolated'})
             run=runner.Run(root)
             with patch.object(runner.subprocess,'run'),patch.object(runner,'Monitor'),patch.object(run,'compose'),patch.object(run,'probe') as probe,patch.object(run,'archiver') as archiver:
@@ -202,26 +202,26 @@ class GuardTests(unittest.TestCase):
             self.assertTrue(run.manifest['passed']);self.assertTrue(run.manifest['services_stopped'])
             self.assertEqual(run.config['DELETE_ENABLED'],'false')
 
-    def test_source_url_is_read_only_warehouse_not_arbitrary_path(self):
+    def test_source_url_is_read_only_lakehouse_not_arbitrary_path(self):
         self.assertEqual(runner.source_url(TEST_SOURCE),TEST_SOURCE)
         self.assertEqual(runner.source_url('https://origin/sage/cold/lakehouse'),'https://origin/sage/cold/lakehouse')
-        for url in ('https://origin/sage/cold-storage-archive-test/lakehouse','https://origin/sage/cold-storage-demo/lakehouse','https://origin/sage/cold-test-/lakehouse','https://origin/sage/cold-storage-demo/warehouse','http://origin/sage/cold-storage-demo/lakehouse','https://origin/node-data','https://u:p@origin/sage/cold-storage-demo/warehouse',
-                    'https://origin/sage/cold-storage-demo/warehouse?authz=secret','https://origin/sage/cold-storage-demo/../warehouse'):
+        for url in ('https://origin/sage/cold-storage-archive-test/lakehouse','https://origin/sage/cold-storage-demo/lakehouse','https://origin/sage/cold-test-/lakehouse','https://origin/sage/cold-storage-demo/lakehouse','http://origin/sage/cold-storage-demo/lakehouse','https://origin/node-data','https://u:p@origin/sage/cold-storage-demo/lakehouse',
+                    'https://origin/sage/cold-storage-demo/lakehouse?authz=secret','https://origin/sage/cold-storage-demo/../lakehouse'):
             with self.assertRaises(ValueError):runner.source_url(url)
 
     def test_preparation_requires_explicit_source(self):
         with patch.object(sys, 'argv', ['run.py', '--prepare-only']),patch('sys.stderr',new_callable=io.StringIO) as stderr,patch.object(runner,'prepare') as prepare:
             with self.assertRaises(SystemExit) as result:runner.main()
             self.assertEqual(result.exception.code,2)
-            self.assertIn('--source-warehouse is required',stderr.getvalue())
+            self.assertIn('--source-lakehouse is required',stderr.getvalue())
             prepare.assert_not_called()
 
     def test_source_multiset_mismatch_stops_before_delete(self):
         with TemporaryDirectory() as directory:
             root=Path(directory).resolve();run_id='c'*32
-            config=dict(RUN_ID=run_id,LIVE_ROOT=str(root),WAREHOUSE='https://origin/sage/cold-test-'+run_id+'/lakehouse',
-                SOURCE_WAREHOUSE=TEST_SOURCE,COORDINATE_ONLY='true',DELETE_ENABLED='false')
-            manifest=dict(project='sage-archive-live-'+run_id,warehouse=config['WAREHOUSE'],origin='https://origin/sage',phase='prepared',kind='full-day',passed=False)
+            config=dict(RUN_ID=run_id,LIVE_ROOT=str(root),LAKEHOUSE='https://origin/sage/cold-test-'+run_id+'/lakehouse',
+                SOURCE_LAKEHOUSE=TEST_SOURCE,COORDINATE_ONLY='true',DELETE_ENABLED='false')
+            manifest=dict(project='sage-archive-live-'+run_id,lakehouse=config['LAKEHOUSE'],origin='https://origin/sage',phase='prepared',kind='full-day',passed=False)
             runner.live.save(root/'private-config.json',config);runner.live.save(root/'run.json',manifest)
             (root/'reports').mkdir();runner.live.save(root/'reports/bootstrap.json',{'bucket_id':'isolated'})
             run=runner.Run(root)
@@ -236,7 +236,7 @@ class GuardTests(unittest.TestCase):
                 self.assertFalse(result['passed']);self.assertEqual(result['failed_phase'],'verify')
 
     def test_full_comparison_rejects_differences(self):
-        with patch.dict(os.environ,WAREHOUSE='https://origin/sage/cold-test-test/lakehouse',SOURCE_DAY='2025-03-01'),patch.object(full_probe,'job',return_value={'state':'ROUTED','metadata':'https://origin/metadata.json'}),patch.object(full_probe,'duck',return_value=[{'a':2,'b':1}]) as duck:
+        with patch.dict(os.environ,LAKEHOUSE='https://origin/sage/cold-test-test/lakehouse',SOURCE_DAY='2025-03-01'),patch.object(full_probe,'job',return_value={'state':'ROUTED','metadata':'https://origin/metadata.json'}),patch.object(full_probe,'duck',return_value=[{'a':2,'b':1}]) as duck:
             with self.assertRaises(AssertionError):full_probe.verify()
             sql=duck.call_args.args[0]
             self.assertIn('count(*)',sql)
@@ -249,8 +249,8 @@ class GuardTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             root=Path(directory)
             calls=[]
-            def native(sql,warehouses=()):
-                calls.append((sql,warehouses))
+            def native(sql,lakehouses=()):
+                calls.append((sql,lakehouses))
                 if ' AS a,' in sql:return [{'a':2,'b':2}]
                 if 'COPY (' in sql:
                     for target in re.findall(" TO '([^']+)'",sql):
@@ -259,7 +259,7 @@ class GuardTests(unittest.TestCase):
                     return []
                 self.assertEqual(sql.count('EXCEPT ALL'),2)
                 self.assertIn('SELECT time,name,tags,kind,value FROM read_parquet',sql)
-                self.assertFalse(warehouses)
+                self.assertFalse(lakehouses)
                 return [{'all_partitions_equal':True}]
             with patch.object(full_probe,'REPORTS',root),patch.object(full_probe,'duck',side_effect=native):
                 result=full_probe.canonical_equal('left','right',['scoped-read'])
@@ -332,9 +332,9 @@ class ExecutionPolicyTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             root=Path(temporary);(root/'probe-build').mkdir()
             (root/'probe-build/Dockerfile').write_text('ENTRYPOINT ["python", "-u", "/live/probe.py"]')
-            runner.live.save(root/'private-config.json',{'WAREHOUSE':'https://origin/sage/cold-test-test/lakehouse'})
+            runner.live.save(root/'private-config.json',{'LAKEHOUSE':'https://origin/sage/cold-test-test/lakehouse'})
             runner.live.save(root/'run.json',{'source_sha256':{}})
-            args=SimpleNamespace(day='2025-03-01',source_warehouse=TEST_SOURCE,duckdb_memory='3GB',timeout=21600,
+            args=SimpleNamespace(day='2025-03-01',source_lakehouse=TEST_SOURCE,duckdb_memory='3GB',timeout=21600,
                 min_free_gib=32,min_available_gib=10,expected_rows=None,influx_memory='10g',archiver_memory='8g',probe_memory='4g',strings_only=False)
             with patch.object(runner.live,'prepare',return_value=root):runner.prepare(args)
             command=json.loads((root/'compose.capacity.json').read_text())['services']['archiver']['command']

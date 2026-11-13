@@ -40,5 +40,5 @@ func (t TableIdentity) Name() string {
 // Path returns the path of the TableIdentity.
 func (t TableIdentity) Path() string { return t.Namespace() + "/" + t.Name() }
 
-// Location returns the location of the TableIdentity in the warehouse.
-func (t TableIdentity) Location(warehouse string) string { return warehouse + "/" + t.Path() }
+// Location returns the location of the TableIdentity in the lakehouse.
+func (t TableIdentity) Location(lakehouse string) string { return lakehouse + "/" + t.Path() }

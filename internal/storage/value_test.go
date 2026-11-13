@@ -1,5 +1,5 @@
 // value_test.go proves the uint64 decimal convention through native Parquet.
-// It skips unless SAGE_ARCHIVE_DUCKDB2 is set, and it uses no production warehouse.
+// It skips unless SAGE_ARCHIVE_DUCKDB2 is set, and it uses no production lakehouse.
 
 package storage
 

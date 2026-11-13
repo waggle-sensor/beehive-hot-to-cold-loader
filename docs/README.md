@@ -17,7 +17,7 @@ The [repository README](../README.md) provides build commands and a bounded run 
 
 ## Resources
 
-These references cover the warehouse layout, stored VARIANT values, and Iceberg v3 support used by the cold storage architecture:
+These references cover the lakehouse layout, stored VARIANT values, and Iceberg v3 support used by the cold storage architecture:
 
 - [DuckDB: the effect of Parquet row group sizes](https://duckdb.org/docs/2.0/guides/performance/file_formats#the-effect-of-row-group-sizes)
 - [DuckDB 2.0: VARIANT becomes a first-class citizen](https://duckdb.org/docs/2.0/whats_new_in_the_docs#variant-becomes-a-first-class-citizen)

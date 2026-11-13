@@ -54,7 +54,7 @@ func (w *fakeWorker) ConfirmEmpty(context.Context, *control.Job) error { return 
 
 // setup sets up a runner for testing.
 func setup(t *testing.T) (*Runner, *control.Job, *fakeWorker) {
-	s, e := control.Open(filepath.Join(t.TempDir(), "db"), "waggle", "warehouse", "2025-03-01")
+	s, e := control.Open(filepath.Join(t.TempDir(), "db"), "waggle", "lakehouse", "2025-03-01")
 	if e != nil {
 		t.Fatal(e)
 	}

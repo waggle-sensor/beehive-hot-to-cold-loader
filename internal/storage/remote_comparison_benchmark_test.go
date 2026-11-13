@@ -28,7 +28,7 @@ import (
 
 // remoteBenchmarkTarget is the target for a remote comparison benchmark.
 type remoteBenchmarkTarget struct {
-	Warehouse      string            `json:"warehouse"`               // the warehouse of the target
+	Lakehouse      string            `json:"lakehouse"`               // the lakehouse of the target
 	Metadata       string            `json:"metadata"`                // the metadata of the target
 	Day            string            `json:"day"`                     // the day of the target
 	ExpectedSHA256 string            `json:"expected_parquet_sha256"` // the expected SHA-256 of the target
@@ -90,7 +90,7 @@ func inspectRemoteComparison(p *Pelican, target remoteBenchmarkTarget) (remoteBe
 		return out, e
 	}
 	snapshot := meta.CurrentSnapshot()
-	if meta.Version() != 3 || snapshot == nil || meta.Location() != p.Table.Location(target.Warehouse) {
+	if meta.Version() != 3 || snapshot == nil || meta.Location() != p.Table.Location(target.Lakehouse) {
 		return out, fmt.Errorf("expected a pinned Iceberg v3 managed snapshot")
 	}
 	manifests, e := snapshot.Manifests(reader)
@@ -193,7 +193,7 @@ func remoteBenchmarkInputs(t *testing.T) (remoteBenchmarkTarget, *Pelican, strin
 	if e != nil || rows < 1 {
 		t.Fatal("positive audited count required")
 	}
-	reader, e := NewPelicanReader(target.Warehouse, os.Getenv("SAGE_REMOTE_KEY"), root, TableIdentity{})
+	reader, e := NewPelicanReader(target.Lakehouse, os.Getenv("SAGE_REMOTE_KEY"), root, TableIdentity{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -247,7 +247,7 @@ func TestNativeRemoteComparison(t *testing.T) {
 		t.Fatal(e)
 	}
 	report := map[string]any{"passed": false, "rows": rows, "threads": threads, "memory": memory, "fresh_comparison": true, "read_only": reader.ReadOnly,
-		"metadata": target.Metadata, "warehouse": target.Warehouse, "day": target.Day, "pin": pinned, "logical_cpus": runtime.NumCPU()}
+		"metadata": target.Metadata, "lakehouse": target.Lakehouse, "day": target.Day, "pin": pinned, "logical_cpus": runtime.NumCPU()}
 	report["projection_arm"] = "local_dictionary"
 	t.Cleanup(func() {
 		hash, e := digest(expected)
@@ -282,7 +282,7 @@ func TestNativeRemoteComparison(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	setup := "LOAD httpfs; LOAD iceberg; CREATE SECRET archival_read (TYPE http,SCOPE " + Q(target.Warehouse) + ",BEARER_TOKEN " + Q(token) + ");"
+	setup := "LOAD httpfs; LOAD iceberg; CREATE SECRET archival_read (TYPE http,SCOPE " + Q(target.Lakehouse) + ",BEARER_TOKEN " + Q(token) + ");"
 	settings, e := d.Run(ctx, setup+"SELECT name,value FROM duckdb_settings() WHERE name IN ('threads','memory_limit','async_threads','read_ahead_depth','http_client_pool_capacity') ORDER BY name;")
 	if e != nil {
 		t.Fatal(e)

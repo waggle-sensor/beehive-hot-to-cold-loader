@@ -1,5 +1,5 @@
 // Command beehive-hot-to-cold-loader copies one Influx bucket into an isolated
-// Iceberg v3 warehouse. Deletion stays off until writers and readers are
+// Iceberg v3 lakehouse. Deletion stays off until writers and readers are
 // coordinated and the operator enables it explicitly.
 
 package main
@@ -73,7 +73,7 @@ func run() error {
 	key := flag.String("pelican-key", env("PELICAN_KEY_PATH", ""), "ES256 signing key path")
 	resolveOwner := flag.String("resolve-stopped-owner", "", "offline recovery: clear grants only after owner is confirmed terminated and requests drained")
 	confirmStopped := flag.Bool("confirm-owner-stopped", false, "confirm owner termination before offline grant resolution")
-	bootstrapWarehouse := flag.String("bootstrap-warehouse", "", "optional previously audited read-only warehouse")
+	bootstrapLakehouse := flag.String("bootstrap-lakehouse", "", "optional previously audited read-only lakehouse")
 	bootstrapBefore := flag.String("bootstrap-before", "", "exclusive UTC date of audited source coverage; merge hot corrections before this date")
 	flag.Parse()
 	tableIdentity, tableErr := storage.NewTableIdentity(*namespace, *tableName)
@@ -170,7 +170,7 @@ func run() error {
 		if e = source.ValidateSource(ctx); e != nil {
 			return e
 		}
-		for key, value := range map[string]string{"source.bucket_id": *bucketID, "source.org": *org, "bootstrap.warehouse": *bootstrapWarehouse, "bootstrap.before": *bootstrapBefore} {
+		for key, value := range map[string]string{"source.bucket_id": *bucketID, "source.org": *org, "bootstrap.lakehouse": *bootstrapLakehouse, "bootstrap.before": *bootstrapBefore} {
 			if e = store.Bind(key, value); e != nil {
 				return e
 			}
@@ -192,9 +192,9 @@ func run() error {
 			return e
 		}
 		worker := &storage.Worker{Store: store, Catalog: cat, Duck: duck, Influx: source, BuildThreads: *buildThreads, BuildSortThreads: *buildSortThreads}
-		if *bootstrapWarehouse != "" || *bootstrapBefore != "" {
-			if *bootstrapWarehouse == "" || *bootstrapBefore == "" {
-				return errors.New("bootstrap-warehouse and bootstrap-before are required together")
+		if *bootstrapLakehouse != "" || *bootstrapBefore != "" {
+			if *bootstrapLakehouse == "" || *bootstrapBefore == "" {
+				return errors.New("bootstrap-lakehouse and bootstrap-before are required together")
 			}
 			if _, _, e = control.Bounds(*bootstrapBefore); e != nil {
 				return e
@@ -202,10 +202,10 @@ func run() error {
 			if *bootstrapBefore <= *start {
 				return errors.New("bootstrap-before must follow archive-start")
 			}
-			if *bootstrapWarehouse == *lakehouse {
-				return errors.New("bootstrap warehouse must differ from destination")
+			if *bootstrapLakehouse == *lakehouse {
+				return errors.New("bootstrap lakehouse must differ from destination")
 			}
-			worker.Bootstrap, e = storage.NewPelicanReader(*bootstrapWarehouse, *key, root, tableIdentity)
+			worker.Bootstrap, e = storage.NewPelicanReader(*bootstrapLakehouse, *key, root, tableIdentity)
 			if e != nil {
 				return e
 			}

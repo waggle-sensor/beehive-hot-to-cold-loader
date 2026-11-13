@@ -96,7 +96,7 @@ const ReadExpiryGrace = time.Minute
 type View struct {
 	ExpiresAt     string `json:"expires_at"`
 	ID            string `json:"id"`             // the ID of the view
-	Warehouse     string `json:"warehouse"`      // the warehouse of the view
+	Lakehouse     string `json:"lakehouse"`      // the lakehouse of the view
 	Metadata      string `json:"metadata"`       // the metadata of the view
 	Frontier      string `json:"frontier"`       // the frontier of the view
 	CoverageStart string `json:"coverage_start"` // the coverage start of the view
@@ -124,14 +124,14 @@ type Job struct {
 // Store is the SQLite journal. Read deadlines persist across restarts.
 type Store struct {
 	DB                 *sql.DB
-	Bucket, Warehouse  string
+	Bucket, Lakehouse  string
 	readLeaseDuration  time.Duration
 	writeLeaseDuration time.Duration
 	now                func() time.Time
 }
 
 // Open binds persistent identity. Optional durations configure read then write leases.
-func Open(path, bucket, warehouse, start string, leaseDurations ...time.Duration) (*Store, error) {
+func Open(path, bucket, lakehouse, start string, leaseDurations ...time.Duration) (*Store, error) {
 	ttl := DefaultReadLeaseDuration
 	if len(leaseDurations) > 0 {
 		ttl = leaseDurations[0]
@@ -164,7 +164,7 @@ func Open(path, bucket, warehouse, start string, leaseDurations ...time.Duration
 	fail := func(e error) (*Store, error) { db.Close(); return nil, e }
 	for _, q := range []string{
 		`PRAGMA journal_mode=WAL`, `PRAGMA synchronous=FULL`, `PRAGMA busy_timeout=10000`,
-		`CREATE TABLE IF NOT EXISTS config (id INTEGER PRIMARY KEY CHECK(id=1),bucket TEXT,warehouse TEXT,start INTEGER,frontier INTEGER,metadata TEXT,generation INTEGER)`,
+		`CREATE TABLE IF NOT EXISTS config (id INTEGER PRIMARY KEY CHECK(id=1),bucket TEXT,lakehouse TEXT,start INTEGER,frontier INTEGER,metadata TEXT,generation INTEGER)`,
 		`CREATE TABLE IF NOT EXISTS options (key TEXT PRIMARY KEY,value TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS permits (id TEXT PRIMARY KEY,owner TEXT NOT NULL,days TEXT NOT NULL,state TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS inbox (seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,payload TEXT NOT NULL,day TEXT NOT NULL,done INTEGER NOT NULL DEFAULT 0,accepted_at INTEGER NOT NULL DEFAULT (unixepoch()))`,
@@ -184,16 +184,19 @@ func Open(path, bucket, warehouse, start string, leaseDurations ...time.Duration
 			return fail(e)
 		}
 	}
-	if _, e = db.Exec(`INSERT OR IGNORE INTO config VALUES(1,?,?,?,?,'',0)`, bucket, warehouse, dayStart.UnixNano(), dayStart.UnixNano()); e != nil {
+	if e = migrateLakehouseIdentity(db); e != nil {
 		return fail(e)
 	}
-	var storedBucket, storedWarehouse string
+	if _, e = db.Exec(`INSERT OR IGNORE INTO config VALUES(1,?,?,?,?,'',0)`, bucket, lakehouse, dayStart.UnixNano(), dayStart.UnixNano()); e != nil {
+		return fail(e)
+	}
+	var storedBucket, storedLakehouse string
 	var storedStart int64
-	if e = db.QueryRow(`SELECT bucket,warehouse,start FROM config WHERE id=1`).Scan(&storedBucket, &storedWarehouse, &storedStart); e != nil {
+	if e = db.QueryRow(`SELECT bucket,lakehouse,start FROM config WHERE id=1`).Scan(&storedBucket, &storedLakehouse, &storedStart); e != nil {
 		return fail(e)
 	}
-	if storedBucket != bucket || storedWarehouse != warehouse || storedStart != dayStart.UnixNano() {
-		return fail(errors.New("durable configuration differs; do not reuse state for another bucket/warehouse/start"))
+	if storedBucket != bucket || storedLakehouse != lakehouse || storedStart != dayStart.UnixNano() {
+		return fail(errors.New("durable configuration differs; do not reuse state for another bucket/lakehouse/start"))
 	}
 	// Add a persisted reader deadline. Legacy readers
 	// receive one bounded migration window; reopening never extends it.
@@ -227,7 +230,7 @@ func Open(path, bucket, warehouse, start string, leaseDurations ...time.Duration
 	if _, e = db.Exec("UPDATE readers SET expires_at=? WHERE expires_at=0", time.Now().Add(ttl).UnixNano()); e != nil {
 		return fail(e)
 	}
-	store := &Store{DB: db, Bucket: bucket, Warehouse: warehouse, readLeaseDuration: ttl, writeLeaseDuration: writeTTL, now: time.Now}
+	store := &Store{DB: db, Bucket: bucket, Lakehouse: lakehouse, readLeaseDuration: ttl, writeLeaseDuration: writeTTL, now: time.Now}
 	if e = store.migrateWriteLeases(); e != nil {
 		return fail(e)
 	}
@@ -242,7 +245,7 @@ func (s *Store) Close() error { return s.DB.Close() }
 
 // View pins the current metadata for a reader. Repeating the same id returns that pin.
 func (s *Store) View(owner, id string) (View, error) {
-	v := View{ID: id, Warehouse: s.Warehouse}
+	v := View{ID: id, Lakehouse: s.Lakehouse}
 	if id == "" || owner == "" {
 		return v, errors.New("read id and owner required")
 	}

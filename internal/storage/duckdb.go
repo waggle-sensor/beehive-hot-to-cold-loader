@@ -227,7 +227,7 @@ func (d DuckDB) Count(ctx context.Context, source string) (int64, error) {
 }
 
 // Parquet reads local typed files without Hive partition columns. An empty
-// list is an empty relation with the warehouse schema.
+// list is an empty relation with the lakehouse schema.
 func Parquet(paths []string) string {
 	if len(paths) == 0 {
 		return "SELECT NULL::TIMESTAMPTZ_NS AS time,NULL::VARCHAR AS name," + "NULL::VARCHAR AS plugin,NULL::VARCHAR AS vsn,NULL::VARCHAR AS node,NULL::VARCHAR AS host,NULL::VARCHAR AS task,NULL::VARCHAR AS job,NULL::VARCHAR AS zone,MAP{}::MAP(VARCHAR,VARCHAR) AS meta,NULL::VARIANT AS value WHERE false"

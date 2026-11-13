@@ -37,7 +37,7 @@ services:
       context: ${ARCHIVER_SOURCE:?}
     command:
       - --state=/state
-      - --lakehouse=${WAREHOUSE:?}
+      - --lakehouse=${LAKEHOUSE:?}
       - --archive-start=2025-03-01
       - --archive-before=2025-03-02
       - --influx-url=http://influx:8086
@@ -97,7 +97,7 @@ services:
       INFLUXDB_TOKEN: ${INFLUX_TOKEN:?}
       INFLUXDB_BUCKET: waggle
       COLD_FRONTIER: dynamic
-      COLD_WAREHOUSE: ${WAREHOUSE:?}
+      COLD_LAKEHOUSE: ${LAKEHOUSE:?}
       COLD_NAMESPACE: ${COLD_NAMESPACE:-sage}
       COLD_TABLE_NAME: ${COLD_TABLE_NAME:-observations}
       HOT_TO_COLD_LOADER_URL: http://archiver:10001
@@ -113,7 +113,7 @@ services:
       context: ${LIVE_ROOT:?}/probe-build
     environment:
       RUN_ID: ${RUN_ID:?}
-      WAREHOUSE: ${WAREHOUSE:?}
+      LAKEHOUSE: ${LAKEHOUSE:?}
       COLD_NAMESPACE: ${COLD_NAMESPACE:-sage}
       COLD_TABLE_NAME: ${COLD_TABLE_NAME:-observations}
       INFLUX_TOKEN: ${INFLUX_TOKEN:?}

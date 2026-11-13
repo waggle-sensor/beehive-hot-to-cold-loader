@@ -23,7 +23,7 @@ import (
 )
 
 func TestDashboardAndRuleMetricsExist(t *testing.T) {
-	store, err := control.Open(filepath.Join(t.TempDir(), "journal.db"), "waggle", "warehouse", "2025-03-01")
+	store, err := control.Open(filepath.Join(t.TempDir(), "journal.db"), "waggle", "lakehouse", "2025-03-01")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,5 +1,5 @@
 // pelican.go is the only remote object client. Every URL must stay inside the
-// configured warehouse, and this client never deletes an object.
+// configured lakehouse, and this client never deletes an object.
 
 package storage
 
@@ -33,26 +33,26 @@ import (
 type Pelican struct {
 	Table    TableIdentity
 	Base     *url.URL          // the base URL of the Pelican instance
-	Prefix   string            // the prefix of the warehouse
+	Prefix   string            // the prefix of the lakehouse
 	Key      *ecdsa.PrivateKey // the private key for the Pelican instance
 	Client   *http.Client      // the HTTP client
 	Scratch  string            // the scratch directory for the Pelican instance
-	ReadOnly bool              // whether the Pelican instance is read-only
+	ReadOnly bool              // whether the Pelican lakehouse is read-only
 }
 
-// NewPelican opens a read-write client for the destination warehouse.
-func NewPelican(warehouse, keyPath, scratch string, table TableIdentity) (*Pelican, error) {
-	return newPelican(warehouse, keyPath, scratch, table, false)
+// NewPelican opens a read-write client for the destination lakehouse.
+func NewPelican(lakehouse, keyPath, scratch string, table TableIdentity) (*Pelican, error) {
+	return newPelican(lakehouse, keyPath, scratch, table, false)
 }
 
 // NewPelicanReader opens a client that refuses writes. Bootstrap sources use it.
-func NewPelicanReader(warehouse, keyPath, scratch string, table TableIdentity) (*Pelican, error) {
-	return newPelican(warehouse, keyPath, scratch, table, true)
+func NewPelicanReader(lakehouse, keyPath, scratch string, table TableIdentity) (*Pelican, error) {
+	return newPelican(lakehouse, keyPath, scratch, table, true)
 }
 
-// newPelican creates a new Pelican instance for the given warehouse, key path, and scratch directory.
-func newPelican(warehouse, keyPath, scratch string, table TableIdentity, readOnly bool) (*Pelican, error) {
-	u, e := url.Parse(warehouse)
+// newPelican creates a new Pelican instance for the given lakehouse, key path, and scratch directory.
+func newPelican(lakehouse, keyPath, scratch string, table TableIdentity, readOnly bool) (*Pelican, error) {
+	u, e := url.Parse(lakehouse)
 	if e != nil {
 		return nil, e
 	}
@@ -62,7 +62,7 @@ func newPelican(warehouse, keyPath, scratch string, table TableIdentity, readOnl
 	validRoot := len(parts) == 3 && parts[0] == "sage" && (parts[1] == "cold" || allowedPrefix.MatchString(parts[1]))
 	validSuffix := len(parts) == 3 && parts[2] == "lakehouse"
 	if u.Scheme != "https" || u.Host == "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.User != nil || u.RawPath != "" || clean != u.Path || !validRoot || !validSuffix {
-		return nil, errors.New("warehouse must be https://host/sage/cold/lakehouse or https://host/sage/cold-test-<unique>/lakehouse")
+		return nil, errors.New("lakehouse must be https://host/sage/cold/lakehouse or https://host/sage/cold-test-<unique>/lakehouse")
 	}
 	raw, e := os.ReadFile(keyPath)
 	if e != nil {
@@ -90,7 +90,7 @@ func newPelican(warehouse, keyPath, scratch string, table TableIdentity, readOnl
 // Token returns a short-lived bearer token. Write tokens are minted only for PUT.
 func (p *Pelican) Token(write bool) (string, error) { return p.token(write, 20*time.Minute) }
 
-// token signs a token confined to this warehouse prefix.
+// token signs a token confined to this lakehouse prefix.
 func (p *Pelican) token(write bool, lifetime time.Duration) (string, error) {
 	now := time.Now().Unix()
 	scope := "read:" + p.Prefix
@@ -122,7 +122,7 @@ func (p *Pelican) validate(name string) (string, error) {
 		return "", e
 	}
 	if u.Scheme != "https" || u.Host != p.Base.Host || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.RawPath != "" || path.Clean(u.Path) != u.Path || !strings.HasPrefix(u.Path, p.Table.Location(p.Base.Path)+"/") {
-		return "", errors.New("object outside managed warehouse")
+		return "", errors.New("object outside managed lakehouse")
 	}
 	return u.String(), nil
 }

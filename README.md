@@ -2,7 +2,7 @@
 
 [![.github/workflows/ci-cd-pipeline.yaml](https://github.com/waggle-sensor/beehive-hot-to-cold-loader/actions/workflows/ci-cd-pipeline.yaml/badge.svg?event=release)](https://github.com/waggle-sensor/beehive-hot-to-cold-loader/actions/workflows/ci-cd-pipeline.yaml)
 
-Beehive's archival service moves completed UTC days from InfluxDB into an Iceberg v3 warehouse on [Pelican](https://docs.pelicanplatform.org/about-pelican). It verifies the published data before routing queries to cold storage, then deletes the verified hot interval when deletion is enabled and older readers have drained.
+Beehive's archival service moves completed UTC days from InfluxDB into an Iceberg v3 lakehouse on [Pelican](https://docs.pelicanplatform.org/about-pelican). It verifies the published data before routing queries to cold storage, then deletes the verified hot interval when deletion is enabled and older readers have drained.
 
 The service coordinates with [beehive-influxdb-loader](https://github.com/waggle-sensor/beehive-influxdb-loader) for writer fencing and late measurements, and with
 [beehive-data-api](https://github.com/waggle-sensor/beehive-data-api/blob/main/docs/README.md) for pinned read views. A Go scheduler and SQLite journal manage recoverable jobs; no external queue is required. Hot retention defaults to 30 days and is configurable.
@@ -11,7 +11,7 @@ The service coordinates with [beehive-influxdb-loader](https://github.com/waggle
 
 | Guide | Read this for |
 | --- | --- |
-| [Service overview and architecture](docs/architecture.md) | Lifecycle, late data, read routing, verification, and warehouse layout |
+| [Service overview and architecture](docs/architecture.md) | Lifecycle, late data, read routing, verification, and lakehouse layout |
 | [Configuration](docs/configuration.md) | Flags, environment variables, defaults, and integration settings |
 | [Deployment](docs/deployment.md) | Coordinated rollout, bootstrap, and enabling deletion |
 | [Operations and recovery](docs/operations.md) | Status, reader leases, stopped writers, cleanup, and troubleshooting |
@@ -63,12 +63,12 @@ After every writer for the selected bucket participates in coordination:
 This bounds new archive scheduling to March 1; it does not disable recovery or late corrections. Choose coverage dates matching the source history. Use `--coordinate-only` during writer migration. Follow the [deployment guide](docs/deployment.md) before enabling archival or deletion against a real bucket.
 
 The table defaults to `sage.observations`, stored beneath
-`<warehouse>/sage/observations/`. Configure `COLD_NAMESPACE` and
+`<lakehouse>/sage/observations/`. Configure `COLD_NAMESPACE` and
 `COLD_TABLE_NAME` (or `--namespace` and `--table-name`) to select another
 table, and configure the API with the same values. See
 [configuration](docs/configuration.md#listener-and-persistent-identity).
 
-**Deletion is off by default.** Enabling it requires `--delete-enabled` and `--readers-coordinated` alongside coordinated writers. Keep Influx bucket retention unlimited so unverified age-based expiration cannot bypass the service. Use one active instance and one persistent state/catalog per warehouse. Never use `/node-data` or an existing demo warehouse as the writable destination.
+**Deletion is off by default.** Enabling it requires `--delete-enabled` and `--readers-coordinated` alongside coordinated writers. Keep Influx bucket retention unlimited so unverified age-based expiration cannot bypass the service. Use one active instance and one persistent state/catalog per lakehouse. Never use `/node-data` or an existing demo lakehouse as the writable destination.
 
 ## Monitor
 

@@ -289,10 +289,10 @@ def check_api(label, rows):
 
 def token(write=False):
     import jwt
-    warehouse = os.environ["WAREHOUSE"]
-    warehouse_path = urlsplit(warehouse).path
-    prefix = warehouse_path.split("/")[2]
-    if warehouse_path != "/sage/cold-test-"+os.environ["RUN_ID"]+"/lakehouse":
+    lakehouse = os.environ["LAKEHOUSE"]
+    lakehouse_path = urlsplit(lakehouse).path
+    prefix = lakehouse_path.split("/")[2]
+    if lakehouse_path != "/sage/cold-test-"+os.environ["RUN_ID"]+"/lakehouse":
         raise AssertionError("remote prefix is not this run's generated prefix")
     now = int(time.time())
     claims = dict(sub="sage-live-gate", aud="ANY", ver="scitoken:2.0", scope="read:/"+prefix+"/lakehouse"+(" write:/"+prefix+"/lakehouse" if write else ""),
@@ -313,12 +313,12 @@ def table_path():
 
 
 def remote_rows(metadata):
-    warehouse = os.environ["WAREHOUSE"]
-    if not metadata.startswith(warehouse+table_path()+"/metadata/") or not metadata.endswith(".metadata.json"):
-        raise AssertionError("snapshot outside isolated managed warehouse")
+    lakehouse = os.environ["LAKEHOUSE"]
+    if not metadata.startswith(lakehouse+table_path()+"/metadata/") or not metadata.endswith(".metadata.json"):
+        raise AssertionError("snapshot outside isolated managed lakehouse")
     keys = ",".join(sqlquote(tag) for tag in TAGS)
     full_meta = "map_concat(meta,map_from_entries(list_filter(list_zip(["+keys+"],["+",".join(TAGS)+"]),lambda x: x[2] IS NOT NULL)))"
-    sql = "SET TimeZone='UTC'; SET memory_limit='256MB'; LOAD httpfs; LOAD iceberg; CREATE SECRET live_read (TYPE http,SCOPE "+sqlquote(warehouse)+",BEARER_TOKEN "+sqlquote(token())+"); SELECT epoch_ns(time) AS time,name,to_json(value)::VARCHAR AS value,to_json("+full_meta+")::VARCHAR AS meta FROM iceberg_scan("+sqlquote(metadata)+");"
+    sql = "SET TimeZone='UTC'; SET memory_limit='256MB'; LOAD httpfs; LOAD iceberg; CREATE SECRET live_read (TYPE http,SCOPE "+sqlquote(lakehouse)+",BEARER_TOKEN "+sqlquote(token())+"); SELECT epoch_ns(time) AS time,name,to_json(value)::VARCHAR AS value,to_json("+full_meta+")::VARCHAR AS meta FROM iceberg_scan("+sqlquote(metadata)+");"
     result = subprocess.run(["duckdb", "-batch", "-bail", "-json"], input=sql, text=True, capture_output=True, timeout=180)
     if result.returncode:
         raise RuntimeError("pinned remote DuckDB read failed; SQL/stderr withheld because it contains a credential")
@@ -335,17 +335,17 @@ def remote_rows(metadata):
 def bootstrap(declare_broker=True):
     version = subprocess.run(["duckdb", "-version"], capture_output=True, text=True, check=True).stdout
     if not re.search(r"\bv2\.0\.\d", version): raise AssertionError("DuckDB 2.0.x required")
-    warehouse = os.environ["WAREHOUSE"]
+    lakehouse = os.environ["LAKEHOUSE"]
     auth = {"Authorization": "Bearer "+token(write=True)}
-    # A new UUID is allocated for every run. Never reuse a published warehouse.
+    # A new UUID is allocated for every run. Never reuse a published lakehouse.
     try:
-        with urlopen(Request(warehouse+table_path()+"/metadata/version-hint.text", headers=auth), timeout=60):
-            raise AssertionError("generated prefix already has a published warehouse")
+        with urlopen(Request(lakehouse+table_path()+"/metadata/version-hint.text", headers=auth), timeout=60):
+            raise AssertionError("generated prefix already has a published lakehouse")
     except HTTPError as error:
         if error.code != 404: raise RuntimeError("new-prefix preflight returned HTTP "+str(error.code)) from None
     # Keep the origin marker outside the configured table. A file there creates the managed
     # table collection, and a new catalog refuses to adopt an occupied root.
-    marker = warehouse+"/validation/live-gate.json"
+    marker = lakehouse+"/validation/live-gate.json"
     data = json.dumps({"run_id":os.environ["RUN_ID"]}).encode()
     call(marker, data, method="PUT", headers={**auth,"Content-Type":"application/json"})
     readback, _ = call(marker, headers=auth)
@@ -372,13 +372,13 @@ def bootstrap(declare_broker=True):
             raise
     if declare_broker:
         wait("private broker topology", declare_topology)
-    return {"bucket_id":selected["id"], "warehouse":warehouse, "duckdb":version.strip(), "origin_marker_readback":True,
+    return {"bucket_id":selected["id"], "lakehouse":lakehouse, "duckdb":version.strip(), "origin_marker_readback":True,
             "dependencies":{name:package_version(name) for name in ("sage-data-client","pandas","pyarrow","pika","pywagglemsg","influxdb-client","PyJWT")}}
 
 
 def ready():
     status=wait("coordinator readiness", lambda: coord("/v1/status"))
-    if db("SELECT warehouse FROM config WHERE id=1")[0][0] != os.environ["WAREHOUSE"]: raise AssertionError("wrong coordinator warehouse")
+    if db("SELECT lakehouse FROM config WHERE id=1")[0][0] != os.environ["LAKEHOUSE"]: raise AssertionError("wrong coordinator lakehouse")
     return status
 
 
@@ -480,7 +480,7 @@ def late_corrected():
     checks=check_api("corrected",expected("final"))
     wait("all API grants released",lambda:views()=={pins["hot"]["id"],pins["cold"]["id"]})
     return {"status":status,"api":checks,"old_snapshot_unchanged":True,"inbox":inbox(),"broker":broker_queue(),
-            "warehouse_contract":warehouse_contract(status["metadata"]),"verification_journal":verification_journal(before_delete=True)}
+            "lakehouse_contract":lakehouse_contract(status["metadata"]),"verification_journal":verification_journal(before_delete=True)}
 
 
 def deletion_blocked():
@@ -506,11 +506,11 @@ def release_and_finish():
     release_read(pins["cold"])
     status=wait("readers/writers/late work drained",lambda: clean_status())
     return {"status":status,"api":checks,"job":archive_job(),"old_snapshot_still_readable":True,"broker":broker_queue(),
-            "warehouse_contract":warehouse_contract(status["metadata"]),"verification_journal":verification_journal()}
+            "lakehouse_contract":lakehouse_contract(status["metadata"]),"verification_journal":verification_journal()}
 
 
-def warehouse_contract(metadata):
-    root=os.environ["WAREHOUSE"]
+def lakehouse_contract(metadata):
+    root=os.environ["LAKEHOUSE"]
     if not metadata.startswith(root+table_path()+"/metadata/"):
         raise AssertionError("metadata outside this run")
     body=json_call(metadata,method="GET",headers={"Authorization":"Bearer "+token()})
@@ -526,10 +526,10 @@ def warehouse_contract(metadata):
         raise AssertionError("stored MAP metadata changed")
     props=body["properties"]
     for key,value in {"sage.layout":"plugin-vsn-time","sage.layout.version":"bounded-plugin-v1","sage.batch.order":"time","sage.row-group.rows":"262144"}.items():
-        if props.get(key)!=value: raise AssertionError("warehouse layout property changed: "+key)
+        if props.get(key)!=value: raise AssertionError("lakehouse layout property changed: "+key)
     spec=next(spec for spec in body["partition-specs"] if spec["spec-id"]==body["default-spec-id"])
     if not any(field["source-id"]==1 and field["transform"]=="day" for field in spec["fields"]):
-        raise AssertionError("warehouse is not day partitioned")
+        raise AssertionError("lakehouse is not day partitioned")
     save("published-metadata",body)
     return {"format":3,"time_type":fields["time"]["type"],"value_type":fields["value"]["type"],"meta_type":"map","layout":props["sage.layout.version"]}
 

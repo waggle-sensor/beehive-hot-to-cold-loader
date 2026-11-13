@@ -124,7 +124,7 @@ def prepare(args):
     config = {"RUN_ID": run_id, "LIVE_ROOT": str(root), "PELICAN_KEY": str(key),
               "COLD_NAMESPACE": os.environ.get("COLD_NAMESPACE", "sage"),
               "COLD_TABLE_NAME": os.environ.get("COLD_TABLE_NAME", "observations"),
-              "WAREHOUSE": origin + "/cold-test-" + run_id + "/lakehouse",
+              "LAKEHOUSE": origin + "/cold-test-" + run_id + "/lakehouse",
               "ARCHIVER_SOURCE": str(root / "archiver-build"), "API_SOURCE": str(root / "api-build"),
               "ARCHIVER_IMAGE": images.get("archiver", ""), "API_IMAGE": images.get("api", ""),
               "LOADER_IMAGE": images.get("loader", ""),
@@ -132,7 +132,7 @@ def prepare(args):
     for name in ("LOADER_TOKEN", "READER_TOKEN", "ADMIN_TOKEN", "INFLUX_TOKEN", "INFLUX_PASSWORD", "BROKER_PASSWORD"):
         config[name] = secrets.token_hex(32)
     save(root / "private-config.json", config)
-    manifest = {"project": "sage-archive-live-" + run_id, "warehouse": config["WAREHOUSE"],
+    manifest = {"project": "sage-archive-live-" + run_id, "lakehouse": config["LAKEHOUSE"],
                 "origin": origin, "run_id": run_id, "phase": "prepared", "passed": False,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "execution_policy":{"normalization_threads":16,"normalization_merge_fan_in":16,"normalization_merge_concurrency":1,"comparison_threads":16,"build_threads":16,"build_sort_threads":2,"canonical_reuse":True,"build_canonicalization":"tag_dictionary","reconciliation_canonicalization":"raw_tag_dictionary","verification_canonicalization":"local_dictionary","partitioning":"fixed"},
@@ -151,7 +151,7 @@ class Run:
         if not re.fullmatch("[a-f0-9]{32}", run_id):
             raise ValueError("invalid isolated run ID")
         expected = origin_url(self.manifest["origin"]) + "/cold-test-" + run_id + "/lakehouse"
-        if (self.config["WAREHOUSE"] != expected or self.manifest["warehouse"] != expected
+        if (self.config["LAKEHOUSE"] != expected or self.manifest["lakehouse"] != expected
                 or self.manifest["project"] != "sage-archive-live-" + run_id
                 or self.config["LIVE_ROOT"] != str(self.root)):
             raise ValueError("run identity/prefix mismatch")

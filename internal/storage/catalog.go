@@ -25,12 +25,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// Catalog is the local SQL catalog plus the remote warehouse it publishes to.
+// Catalog is the local SQL catalog plus the remote lakehouse it publishes to.
 type Catalog struct {
 	DB        *sql.DB         // the database for the catalog
 	Catalog   *sqlcat.Catalog // the catalog
 	IO        *Pelican        // the Pelican client
-	Warehouse string          // the warehouse for the catalog
+	Lakehouse string          // the lakehouse for the catalog
 }
 
 // Schema is the published v3 schema: promoted tags, a meta map, and a VARIANT value.
@@ -45,14 +45,14 @@ func Schema() *iceberg.Schema {
 
 var registerHTTPS sync.Once            // registerHTTPS is used to register the HTTPS transport for the Pelican instance
 var transportsMu sync.RWMutex          // transportsMu is used to lock the transports map
-var transports = map[string]*Pelican{} // transports is a map of warehouses to Pelican instances
+var transports = map[string]*Pelican{} // transports is a map of lakehouses to Pelican instances
 
-// OpenCatalog opens or creates the local catalog database for this warehouse.
-func OpenCatalog(ctx context.Context, path, warehouse string, p *Pelican) (*Catalog, error) {
+// OpenCatalog opens or creates the local catalog database for this lakehouse.
+func OpenCatalog(ctx context.Context, path, lakehouse string, p *Pelican) (*Catalog, error) {
 	// Only this daemon owns the HTTPS implementation. Scope validation occurs on
 	// every operation, including manifest references supplied by Iceberg itself.
 	transportsMu.Lock()
-	transports[p.Table.Location(warehouse)] = p
+	transports[p.Table.Location(lakehouse)] = p
 	transportsMu.Unlock()
 	registerHTTPS.Do(func() {
 		iceio.Register("https", func(_ context.Context, u *url.URL, _ map[string]string) (iceio.IO, error) {
@@ -63,7 +63,7 @@ func OpenCatalog(ctx context.Context, path, warehouse string, p *Pelican) (*Cata
 					return io, nil
 				}
 			}
-			return nil, errors.New("no transport registered for this managed warehouse")
+			return nil, errors.New("no transport registered for this managed lakehouse")
 		})
 	})
 	db, e := sql.Open("sqlite", path)
@@ -75,18 +75,19 @@ func OpenCatalog(ctx context.Context, path, warehouse string, p *Pelican) (*Cata
 		db.Close()
 		return nil, e
 	}
-	cat, e := sqlcat.NewCatalog("sage", db, sqlcat.SQLite, iceberg.Properties{"warehouse": warehouse})
+	// "warehouse" is the Iceberg catalog property key
+	cat, e := sqlcat.NewCatalog("sage", db, sqlcat.SQLite, iceberg.Properties{"warehouse": lakehouse})
 	if e != nil {
 		db.Close()
 		return nil, e
 	}
-	return &Catalog{db, cat, p, warehouse}, nil
+	return &Catalog{db, cat, p, lakehouse}, nil
 }
 
 func (c *Catalog) Identifier() table.Identifier {
 	return table.Identifier{c.IO.Table.Namespace(), c.IO.Table.Name()}
 }
-func (c *Catalog) Location() string { return c.IO.Table.Location(c.Warehouse) }
+func (c *Catalog) Location() string { return c.IO.Table.Location(c.Lakehouse) }
 
 // Init accepts an existing matching table or creates one in an empty prefix.
 func (c *Catalog) Init(ctx context.Context) error {

@@ -13,7 +13,7 @@ func (t TableIdentity) BindState(store *control.Store) error {
 	if err != nil {
 		return err
 	}
-	if metadata != "" && !strings.HasPrefix(metadata, t.Location(store.Warehouse)+"/metadata/") {
+	if metadata != "" && !strings.HasPrefix(metadata, t.Location(store.Lakehouse)+"/metadata/") {
 		return fmt.Errorf("published metadata differs from configured Iceberg table; do not reuse state for another table")
 	}
 	if err := store.Bind("table.namespace", t.Namespace()); err != nil {

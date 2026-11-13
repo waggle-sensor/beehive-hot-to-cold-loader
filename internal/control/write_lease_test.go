@@ -101,7 +101,7 @@ func TestWriterLeaseRenewalExpiryAndFence(t *testing.T) {
 func TestWriterLeaseMigrationRestart(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "control.db")
 	open := func(ttl time.Duration) *Store {
-		s, err := Open(path, "waggle", "warehouse", "2025-03-01", time.Minute, ttl)
+		s, err := Open(path, "waggle", "lakehouse", "2025-03-01", time.Minute, ttl)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -131,7 +131,7 @@ func TestWriterLeaseMigrationRestart(t *testing.T) {
 		t.Fatal("restart extended lease", retry, err)
 	}
 	for _, ttl := range []time.Duration{0, -time.Second, 25 * time.Hour} {
-		if store, err := Open(filepath.Join(t.TempDir(), "bad.db"), "waggle", "warehouse", "2025-03-01", time.Minute, ttl); err == nil {
+		if store, err := Open(filepath.Join(t.TempDir(), "bad.db"), "waggle", "lakehouse", "2025-03-01", time.Minute, ttl); err == nil {
 			store.Close()
 			t.Fatal("invalid writer duration", ttl)
 		}

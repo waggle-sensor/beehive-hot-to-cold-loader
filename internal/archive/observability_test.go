@@ -280,7 +280,7 @@ func TestLifecycleMetricsSurviveRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.Store.Close()
-	reopened, err := control.Open(path, "waggle", "warehouse", "2025-03-01")
+	reopened, err := control.Open(path, "waggle", "lakehouse", "2025-03-01")
 	if err != nil {
 		t.Fatal(err)
 	}

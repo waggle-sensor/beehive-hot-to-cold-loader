@@ -4,7 +4,7 @@
 
 ## Persistent state and ownership
 
-A managed prefix must have exactly one catalog and state directory; never run independent state directories against the same warehouse. Native child processes inherit the writer lock so a restart cannot race an orphaned staging writer. If the lock remains held after a crash, inspect and stop the prior child process before restarting; do not remove the lock file to bypass it.
+A managed prefix must have exactly one catalog and state directory; never run independent state directories against the same lakehouse. Native child processes inherit the writer lock so a restart cannot race an orphaned staging writer. If the lock remains held after a crash, inspect and stop the prior child process before restarting; do not remove the lock file to bypass it.
 
 State includes the control journal, SQL catalog, late inbox, quarantine and job staging. Back it up consistently while the daemon is stopped (or using SQLite backup for both databases plus their corresponding files). Do not delete a journal to retry a job. No snapshot expiry or object GC runs in this initial version. Transient local data is removed only after durable job completion; JSON journals and verification reports remain. Use `--keep-staging` to retain data for debugging; cleanup resumes on the next startup when the flag is removed. Completed-job performance profiles have a separate `--profile-retention` setting (default 30 days). Use `--profile-retention=0` for indefinite profile retention without retaining staging data; `--keep-staging` also preserves profiles. Recovery/verification evidence and legacy profiles with unknown completion times remain preserved. Monitor local and remote capacity.
 
@@ -66,6 +66,6 @@ Late arrivals are durably accepted before broker acknowledgement. Their original
 | Failed `/metrics` scrape | Treat state as unknown; check the process and journal access rather than assuming zero backlog. |
 | Late receipt remains pending | Check its day is in declared coverage and that earlier work/retries are not blocking scheduling. |
 
-Every worker step has a six-hour deadline. Work is resumed from durable state; restart with the same state, warehouse, source identity, and coverage settings. Do not force a state transition or remove a database to skip a failing proof.
+Every worker step has a six-hour deadline. Work is resumed from durable state; restart with the same state, lakehouse, source identity, and coverage settings. Do not force a state transition or remove a database to skip a failing proof.
 
 The engine export and independent query must refer to the same source. A successful publication is insufficient for hot deletion: fresh remote proof, routing, reader drain, another pre-delete proof, and post-delete emptiness checks remain required. Disk reclamation by Influx compaction can lag logical deletion.
