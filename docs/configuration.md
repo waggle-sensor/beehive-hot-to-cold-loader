@@ -55,17 +55,17 @@ Normalization/base work and fresh exact comparisons use sixteen threads. The bui
 
 ## Scheduling and deletion gates
 
-| Flag | Default | Meaning |
-| --- | --- | --- |
-| `--hot-retention` | `720h` | Positive minimum hot age; complete UTC days only |
-| `--interval` | `1h` | Positive new archival scheduling interval |
-| `--late-interval` | `5m` | Positive late correction scheduling interval |
-| `--coordinate-only` | `false` | Serve coordination without starting archival work or deletion |
-| `--writers-coordinated` | `false` | Required to archive; attests all selected-bucket writers participate |
-| `--delete-enabled` | `false` | Permit guarded deletion after routing and proofs |
-| `--readers-coordinated` | `false` | Required with deletion; attests all readers use managed views |
-| `--write-lease-duration` | `30m` | Initial/renewed writer lease; positive and at most `24h`; fixed one-minute grace after expiry |
-| `--read-lease-duration` | `30m` | Initial/renewed read lease; positive and at most `24h` |
+| Flag | Environment | Default | Meaning |
+| --- | --- | --- | --- |
+| `--hot-retention` | `HOT_TO_COLD_HOT_RETENTION` | `720h` | Positive minimum hot age; complete UTC days only |
+| `--interval` | `HOT_TO_COLD_INTERVAL` | `1h` | Positive new archival scheduling interval |
+| `--late-interval` | `HOT_TO_COLD_LATE_INTERVAL` | `5m` | Positive late correction scheduling interval |
+| `--coordinate-only` | `HOT_TO_COLD_COORDINATE_ONLY` | `false` | Serve coordination without starting archival work or deletion |
+| `--writers-coordinated` | `HOT_TO_COLD_WRITERS_COORDINATED` | `false` | Required to archive; attests all selected-bucket writers participate |
+| `--delete-enabled` | `HOT_TO_COLD_DELETE_ENABLED` | `false` | Permit guarded deletion after routing and proofs |
+| `--readers-coordinated` | `HOT_TO_COLD_READERS_COORDINATED` | `false` | Required with deletion; attests all readers use managed views |
+| `--write-lease-duration` | `HOT_TO_COLD_WRITE_LEASE_DURATION` | `30m` | Initial/renewed writer lease; positive and at most `24h`; fixed one-minute grace after expiry |
+| `--read-lease-duration` | `HOT_TO_COLD_READ_LEASE_DURATION` | `30m` | Initial/renewed read lease; positive and at most `24h` |
 
 These switches are operator attestations, not discovery of bypass credentials. `--coordinate-only` cannot be combined with deletion; it does not require the engine/bucket ID or `INFLUX_TOKEN`, and preserves existing durable fences. Retention changes govern new jobs; they do not move archived data back to hot. `--archive-before` does not suppress existing recovery, late work, or deletions.
 

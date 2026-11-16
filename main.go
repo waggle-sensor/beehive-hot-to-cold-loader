@@ -31,6 +31,36 @@ func env(k, d string) string {
 	}
 	return d
 }
+
+// envBool returns the process variable as a bool, or d when unset or empty.
+func envBool(k string, d bool) bool {
+	v := strings.TrimSpace(os.Getenv(k))
+	if v == "" {
+		return d
+	}
+	switch strings.ToLower(v) {
+	case "1", "t", "true", "yes":
+		return true
+	case "0", "f", "false", "no":
+		return false
+	default:
+		log.Fatalf("%s must be a boolean, got %q", k, v)
+		return d
+	}
+}
+
+// envDuration returns the process variable as a duration, or d when unset or empty.
+func envDuration(k string, d time.Duration) time.Duration {
+	v := strings.TrimSpace(os.Getenv(k))
+	if v == "" {
+		return d
+	}
+	parsed, err := time.ParseDuration(v)
+	if err != nil {
+		log.Fatalf("%s must be a duration, got %q: %v", k, v, err)
+	}
+	return parsed
+}
 func main() {
 	if e := run(); e != nil {
 		log.Fatal(e)
@@ -48,18 +78,18 @@ func run() error {
 	tableName := flag.String("table-name", env("COLD_TABLE_NAME", storage.DefaultTableName), "Iceberg table name")
 	start := flag.String("archive-start", env("HOT_TO_COLD_START", ""), "explicit first UTC day covered; history before it is not assumed")
 	archiveBefore := flag.String("archive-before", "", "optional exclusive UTC day to bound validation/backfill scheduling")
-	readLeaseDuration := flag.Duration("read-lease-duration", control.DefaultReadLeaseDuration, "renewable read lease lifetime; 1m deletion grace follows unrenewed expiry (positive, at most 24h)")
-	writeLeaseDuration := flag.Duration("write-lease-duration", control.DefaultWriteLeaseDuration, "renewable writer lease lifetime; 1m drain grace follows expiry (positive, at most 24h)")
-	retention := flag.Duration("hot-retention", 720*time.Hour, "minimum hot age; complete UTC days, default 30 days")
-	interval := flag.Duration("interval", time.Hour, "archival scheduler interval")
-	lateInterval := flag.Duration("late-interval", 5*time.Minute, "late correction scheduler interval")
+	readLeaseDuration := flag.Duration("read-lease-duration", envDuration("HOT_TO_COLD_READ_LEASE_DURATION", control.DefaultReadLeaseDuration), "renewable read lease lifetime; 1m deletion grace follows unrenewed expiry (positive, at most 24h)")
+	writeLeaseDuration := flag.Duration("write-lease-duration", envDuration("HOT_TO_COLD_WRITE_LEASE_DURATION", control.DefaultWriteLeaseDuration), "renewable writer lease lifetime; 1m drain grace follows expiry (positive, at most 24h)")
+	retention := flag.Duration("hot-retention", envDuration("HOT_TO_COLD_HOT_RETENTION", 720*time.Hour), "minimum hot age; complete UTC days, default 30 days")
+	interval := flag.Duration("interval", envDuration("HOT_TO_COLD_INTERVAL", time.Hour), "archival scheduler interval")
+	lateInterval := flag.Duration("late-interval", envDuration("HOT_TO_COLD_LATE_INTERVAL", 5*time.Minute), "late correction scheduler interval")
 	profileRetentionText := flag.String("profile-retention", env("HOT_TO_COLD_PROFILE_RETENTION", "720h"), "performance profile retention after completion; 0 disables expiry")
 	profileSteps := flag.Bool("profile-steps", false, "record per-attempt wall/CPU timings and process-lifetime RSS; disabled by default")
 	keepStaging := flag.Bool("keep-staging", false, "retain transient job data after completion for debugging")
-	coordinateOnly := flag.Bool("coordinate-only", false, "serve loader/read coordination without fencing, export, publication or deletion")
-	deleteEnabled := flag.Bool("delete-enabled", false, "delete verified/routed Influx days; requires fenced deployment")
-	coordinated := flag.Bool("writers-coordinated", false, "all bucket writers enforce permits and bypass access is restricted")
-	readerCoordinated := flag.Bool("readers-coordinated", false, "all API readers use managed views; no static hot reader remains")
+	coordinateOnly := flag.Bool("coordinate-only", envBool("HOT_TO_COLD_COORDINATE_ONLY", false), "serve loader/read coordination without fencing, export, publication or deletion")
+	deleteEnabled := flag.Bool("delete-enabled", envBool("HOT_TO_COLD_DELETE_ENABLED", false), "delete verified/routed Influx days; requires fenced deployment")
+	coordinated := flag.Bool("writers-coordinated", envBool("HOT_TO_COLD_WRITERS_COORDINATED", false), "all bucket writers enforce permits and bypass access is restricted")
+	readerCoordinated := flag.Bool("readers-coordinated", envBool("HOT_TO_COLD_READERS_COORDINATED", false), "all API readers use managed views; no static hot reader remains")
 	influxURL := flag.String("influx-url", env("INFLUX_URL", "http://localhost:8086"), "Influx source URL")
 	bucket := flag.String("bucket", env("INFLUX_BUCKET", "waggle"), "Influx bucket")
 	org := flag.String("org", env("INFLUX_ORG", "waggle"), "Influx organization")

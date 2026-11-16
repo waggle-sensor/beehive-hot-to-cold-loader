@@ -6,6 +6,22 @@ Build the service and supply its native dependencies as described in the [reposi
 
 ## Rollout sequence
 
+The sage01 manifests use a **single-instance StatefulSet**. Its `state` claim
+template creates `state-beehive-hot-to-cold-loader-0`; explicit StatefulSet
+retention policies keep that PVC when the workload is deleted or scaled to
+zero. Deleting/reapplying the same service Kustomization reuses the same
+claim and state directory. Keep the workload/claim-template names, namespace,
+identity and credentials unchanged, and wait for the old pod to terminate.
+The claim uses the existing `local-path` StorageClass; no dedicated class or
+separate storage Kustomization is needed. Explicit PVC/namespace deletion can
+still reclaim its backing storage according to that class's policy. See the [storage configuration and verification](../../honeyhouse-config/applications/beehive-sage/beehive-hot-to-cold-loader/README.md#state-storage-and-claim-deletion).
+
+This is a fresh rollout, not automatic migration of the previous Deployment's
+state. Remove/stop the old Deployment before creating the StatefulSet; applying
+a different workload kind does not remove the old one. Never run both against
+the same lakehouse. Keep one active replica without an autoscaler, and retain
+consistent independent journal/catalog backups.
+
 1. Start with an isolated test bucket and a fresh managed prefix. Start the archiver in `--coordinate-only` mode while migrating loaders; this serves grants and durable receipts but creates no new fences or archival jobs. Existing durable fences are preserved on maintenance restarts. Mount Influx's engine read-only; use matching Influx binaries. On Kubernetes, a sidecar in the Influx pod can share its engine PVC without a second RWO attachment.
 2. Expose port 10001 only internally, with TLS termination and network policy. Separate loader, reader and admin tokens. There is no public control API.
 3. Set loader `HOT_TO_COLD_LOADER_URL`, `HOT_TO_COLD_LOADER_LOADER_TOKEN`, and unique `HOT_TO_COLD_LOADER_LOADER_OWNER` (pod UID prefix; a process UUID is appended automatically). Update every writer of the selected bucket, including imports and other writers targeting `waggle`. The current recent-loader targets the separate `waggle-recent` bucket and must not use this coordinator. Remove bypass access before asserting `--writers-coordinated`. Do not run old and new loaders against the same archival bucket during fencing.
