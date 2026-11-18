@@ -30,7 +30,13 @@ func TestDashboardAndRuleMetricsExist(t *testing.T) {
 	defer store.Close()
 	metrics := observability.New(720*time.Hour, true, false)
 	handler := metrics.Handler(func(ctx context.Context) (observability.Snapshot, error) {
-		return store.MetricsSnapshot(ctx, control.SnapshotOptions{Retention: 720 * time.Hour, DeletionEnabled: true})
+		samples, err := store.MetricsSnapshot(ctx, control.SnapshotOptions{Retention: 720 * time.Hour, DeletionEnabled: true})
+		if err != nil {
+			return nil, err
+		}
+		// Include backup gauges even when Remote is unset (backup_configured=0).
+		backups := &control.BackupService{Store: store}
+		return append(samples, backups.Samples()...), nil
 	})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest("GET", "/metrics", nil))

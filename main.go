@@ -14,13 +14,16 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"beehive-hot-to-cold-loader/cmd/backup"
 	"beehive-hot-to-cold-loader/internal/archive"
 	"beehive-hot-to-cold-loader/internal/control"
 	"beehive-hot-to-cold-loader/internal/observability"
+	"beehive-hot-to-cold-loader/internal/statebackup"
 	"beehive-hot-to-cold-loader/internal/storage"
 )
 
@@ -61,7 +64,19 @@ func envDuration(k string, d time.Duration) time.Duration {
 	}
 	return parsed
 }
+
+//main function
 func main() {
+
+	// handle state-backup command
+	if len(os.Args) > 1 && os.Args[1] == "state-backup" {
+		if err := backup.Run(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
+	// handle main command
 	if e := run(); e != nil {
 		log.Fatal(e)
 	}
@@ -169,6 +184,9 @@ func run() error {
 	if e = os.MkdirAll(root, 0700); e != nil {
 		return e
 	}
+	if e = statebackup.StartupCheck(root); e != nil {
+		return e
+	}
 	lock, e := os.OpenFile(filepath.Join(root, "writer.lock"), os.O_CREATE|os.O_RDWR, 0600)
 	if e != nil {
 		return e
@@ -179,6 +197,22 @@ func run() error {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	if env("HOT_TO_COLD_BACKUP_SCRATCH", "") != "" {
+		if _, err := os.Stat(filepath.Join(root, "control.db")); os.IsNotExist(err) {
+			remote, err := storage.NewBackupRemote(*lakehouse, *key, env("HOT_TO_COLD_BACKUP_SCRATCH", ""), tableIdentity, env("HOT_TO_COLD_BACKUP_URL", ""), 30)
+			if err != nil {
+				return err
+			}
+			check, stop := context.WithTimeout(ctx, 30*time.Second)
+			err = remote.RequireNewState(check)
+			stop()
+			if err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+	}
 	store, e := control.Open(filepath.Join(root, "control.db"), *bucket, *lakehouse, *start, *readLeaseDuration, *writeLeaseDuration)
 	if e != nil {
 		return e
@@ -259,11 +293,52 @@ func run() error {
 			return e
 		}
 	}
+	backupService := &control.BackupService{Store: store, Scratch: env("HOT_TO_COLD_BACKUP_SCRATCH", ""), StateRoot: root, Image: env("HOT_TO_COLD_BACKUP_IMAGE", ""), Parent: ctx, Boundary: make(chan func())}
+	if backupService.Scratch != "" {
+		scratch, err := statebackup.ResolvePath(backupService.Scratch)
+		if err != nil {
+			return err
+		}
+		actual, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			return err
+		}
+		if err = statebackup.Disjoint(actual, scratch); err != nil {
+			return err
+		}
+		keyPath, err := filepath.EvalSymlinks(*key)
+		if err != nil {
+			return err
+		}
+		if err = statebackup.Disjoint(actual, keyPath); err != nil {
+			return errors.New("backup signing key must be mounted outside the state directory")
+		}
+	}
+	if e = backupService.LoadStatus(); e != nil {
+		log.Printf("backup status unavailable; coordinator remains available: %v", e)
+	}
+	if backupService.Scratch != "" {
+		keep := 30
+		if text := os.Getenv("HOT_TO_COLD_BACKUP_KEEP"); text != "" {
+			if keep, e = strconv.Atoi(text); e != nil {
+				return e
+			}
+		}
+		remote, err := storage.NewBackupRemote(*lakehouse, *key, backupService.Scratch, tableIdentity, env("HOT_TO_COLD_BACKUP_URL", ""), keep)
+		if err != nil {
+			return err
+		}
+		backupService.Remote = remote
+	}
 	metricsHandler := metrics.Handler(func(ctx context.Context) (observability.Snapshot, error) {
 		id, at := metrics.Retrying()
-		return store.MetricsSnapshot(ctx, control.SnapshotOptions{Retention: *retention, DeletionEnabled: *deleteEnabled, CoordinateOnly: *coordinateOnly, RetryID: id, RetryAt: at})
+		samples, err := store.MetricsSnapshot(ctx, control.SnapshotOptions{Retention: *retention, DeletionEnabled: *deleteEnabled, CoordinateOnly: *coordinateOnly, RetryID: id, RetryAt: at})
+		if err != nil {
+			return nil, err
+		}
+		return append(samples, backupService.Samples()...), nil
 	})
-	server := &http.Server{Addr: *addr, Handler: &control.Server{Store: store, LoaderToken: tokens[0], ReaderToken: tokens[1], AdminToken: tokens[2], MetricsHandler: metricsHandler, Retention: *retention}, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: time.Minute}
+	server := &http.Server{Addr: *addr, Handler: &control.Server{Store: store, LoaderToken: tokens[0], ReaderToken: tokens[1], AdminToken: tokens[2], MetricsHandler: metricsHandler, Retention: *retention, Backups: backupService}, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: time.Minute}
 	errch := make(chan error, 1)
 	go func() { errch <- server.ListenAndServe() }()
 	defer func() {
@@ -278,6 +353,14 @@ func run() error {
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 	for {
+		// Prefer an already waiting backup over another potentially long step.
+		select {
+		case runBackupCapture := <-backupService.Boundary:
+			metrics.SchedulerIteration.Set(float64(time.Now().UnixNano()) / 1e9)
+			runBackupCapture()
+			continue
+		default:
+		}
 		select {
 		case <-ctx.Done():
 			return nil
@@ -286,6 +369,9 @@ func run() error {
 				return nil
 			}
 			return e
+		case runBackupCapture := <-backupService.Boundary:
+			metrics.SchedulerIteration.Set(float64(time.Now().UnixNano()) / 1e9)
+			runBackupCapture()
 		case now := <-tick.C:
 			metrics.SchedulerIteration.Set(float64(now.UnixNano()) / 1e9)
 			if !now.Before(retryAt) {

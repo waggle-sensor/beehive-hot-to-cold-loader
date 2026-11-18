@@ -3,6 +3,7 @@
 package control
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -12,11 +13,60 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 )
+
+// ErrAdmissionClosed is returned when backup capture temporarily blocks new
+// write grants and late/quarantine submissions. Existing renewals still work.
+var ErrAdmissionClosed = errors.New("write admission temporarily closed")
+
+// CloseAdmission blocks new write/late/quarantine submissions for backup capture.
+// Callers still holding an active permit may renew or release it.
+func (s *Store) CloseAdmission() {
+	s.admissionMu.Lock()
+	s.admissionClosed = true
+	s.admissionMu.Unlock()
+}
+
+// OpenAdmission restores write admission after capture finishes or fails.
+func (s *Store) OpenAdmission() {
+	s.admissionMu.Lock()
+	s.admissionClosed = false
+	s.admissionMu.Unlock()
+}
+
+// AdmissionClosed reports whether backup capture is blocking new write submissions.
+func (s *Store) AdmissionClosed() bool {
+	s.admissionMu.RLock()
+	defer s.admissionMu.RUnlock()
+	return s.admissionClosed
+}
+
+// DrainWrites waits until no active writer permits remain inside expiry+grace.
+// Expiry follows the normal lease policy; it does not cancel remote writer IO.
+func (s *Store) DrainWrites(ctx context.Context) error {
+	tick := time.NewTicker(20 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		var n int
+		if err := s.DB.QueryRowContext(ctx, "SELECT count(*) FROM permits WHERE state='active' AND expires_at > ?", s.now().Add(-WriteExpiryGrace).UnixNano()).Scan(&n); err != nil {
+			return err
+		}
+		if n == 0 {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-tick.C:
+		}
+	}
+}
 
 // ErrExportNeedsReconcile requests a safe rewind while the day stays fenced.
 var ErrExportNeedsReconcile = errors.New("export must be normalized and reconciled before building")
@@ -128,6 +178,9 @@ type Store struct {
 	readLeaseDuration  time.Duration
 	writeLeaseDuration time.Duration
 	now                func() time.Time
+	admissionMu        sync.RWMutex
+	admissionClosed    bool          // backup capture barrier; blocks new writes only
+	admissionRejected  atomic.Uint64 // submissions rejected while admissionClosed
 }
 
 // Open binds persistent identity. Optional durations configure read then write leases.
@@ -337,6 +390,8 @@ func (s *Store) ReleaseRead(id string) error {
 
 // Permit grants owner the right to write days. Repeating an active id returns the same grant.
 func (s *Store) Permit(id, owner string, days []string) ([]string, error) {
+	s.admissionMu.RLock()
+	defer s.admissionMu.RUnlock()
 	if id == "" || owner == "" || len(days) == 0 {
 		return nil, errors.New("permit id, owner and days required")
 	}
@@ -363,6 +418,10 @@ func (s *Store) Permit(id, owner string, days []string) ([]string, error) {
 	}
 	if !errors.Is(e, sql.ErrNoRows) {
 		return nil, e
+	}
+	if s.admissionClosed {
+		s.admissionRejected.Add(1)
+		return nil, ErrAdmissionClosed
 	}
 	var frontier int64
 	if e = tx.QueryRow(`SELECT frontier FROM config WHERE id=1`).Scan(&frontier); e != nil {
@@ -435,6 +494,12 @@ func (s *Store) OldReaders(day string) (int, error) {
 
 // Enqueue accepts a batch of late points for days already behind the frontier.
 func (s *Store) Enqueue(id string, records []Record) error {
+	s.admissionMu.RLock()
+	defer s.admissionMu.RUnlock()
+	if s.admissionClosed {
+		s.admissionRejected.Add(1)
+		return ErrAdmissionClosed
+	}
 	if id == "" || len(records) == 0 {
 		return errors.New("inbox id and records required")
 	}
@@ -501,6 +566,12 @@ func (s *Store) Enqueue(id string, records []Record) error {
 
 // Quarantine stores one payload that could not be applied, keyed for idempotent retry.
 func (s *Store) Quarantine(id, payload string) error {
+	s.admissionMu.RLock()
+	defer s.admissionMu.RUnlock()
+	if s.admissionClosed {
+		s.admissionRejected.Add(1)
+		return ErrAdmissionClosed
+	}
 	if id == "" {
 		return errors.New("quarantine id required")
 	}

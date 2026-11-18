@@ -8,8 +8,25 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
+
+// TestBackupAdmissionReturnsRetryableUnavailable checks that a closed write
+// admission (as during backup capture) returns 503 with Retry-After.
+func TestBackupAdmissionReturnsRetryableUnavailable(t *testing.T) {
+	store := testStore(t)
+	store.CloseAdmission()
+	handler := &Server{Store: store, LoaderToken: "loader"}
+	body := `{"bucket":"waggle","id":"new","owner":"writer","days":["2025-01-01"]}`
+	req := httptest.NewRequest("POST", "/v1/writes/acquire", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer loader")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+	if response.Code != http.StatusServiceUnavailable || response.Header().Get("Retry-After") == "" {
+		t.Fatalf("status=%d headers=%v body=%s", response.Code, response.Header(), response.Body.String())
+	}
+}
 
 // TestRoleIsolationAndDurableReceipt tests that each token can call only its own routes, and that repeating a read acquire returns the snapshot from the first acquire.
 func TestRoleIsolationAndDurableReceipt(t *testing.T) {
