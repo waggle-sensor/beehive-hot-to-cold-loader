@@ -47,6 +47,7 @@ Application names below use prefix `hot_to_cold_`:
 | `profile_cleanup_last_success_timestamp_seconds` | Gauge: last successful enabled maintenance pass, zero before first success |
 | `backup_configured` | Gauge: 1 when scratch/destination backup configuration is active |
 | `backup_running` | Gauge: 1 while a backup operation is in progress |
+| `backup_phase{phase}` | Gauge: 1 for the current backup status phase (`idle`, `waiting_boundary`, `draining_writers`, `copying`, `uploading`, `complete`, `failed`); 0 otherwise |
 | `backup_admission_closed` | Gauge: 1 while new write/late/quarantine admission is closed for capture |
 | `backup_barrier_age_seconds` | Gauge: age of the current admission barrier; zero when admission is open |
 | `backup_last_success_timestamp_seconds` | Gauge: Unix time of the last verified off-node backup; zero before first success |
@@ -59,7 +60,7 @@ Application names below use prefix `hot_to_cold_`:
 | `backup_last_barrier_seconds` | Gauge: drain/capture barrier duration of the last completed backup |
 | `backup_last_phase_seconds{phase}` | Gauge: last completed wait/drain/capture/upload phase durations |
 
-`mode` is `archive` or `late`. `milestone` is `routed` or `complete`. `outcome` is `success`, `error` or `canceled`. Backup `phase` is `wait`, `drain`, `capture` or `upload`. Stage/state names are the fixed archival state machine. Scheduler operation and wait reason labels are bounded; an `unknown` wait series is initialized for future explicitly unknown reasons. No job IDs, days, plugins, owners, paths, tokens or error strings are labels. Configure environment/deployment labels at the Prometheus target instead.
+`mode` is `archive` or `late`. `milestone` is `routed` or `complete`. `outcome` is `success`, `error` or `canceled`. `backup_phase` uses status phases (`idle` / `waiting_boundary` / `draining_writers` / `copying` / `uploading` / `complete` / `failed`). `backup_last_phase_seconds` uses duration buckets `wait`, `drain`, `capture`, or `upload`. Stage/state names are the fixed archival state machine. Scheduler operation and wait reason labels are bounded; an `unknown` wait series is initialized for future explicitly unknown reasons. No job IDs, days, plugins, owners, paths, tokens or error strings are labels. Configure environment/deployment labels at the Prometheus target instead.
 
 ROUTED means verified cold data is active for reads. It does not mean hot data was deleted. COMPLETE is the separate durable job outcome. Waits do not inflate failure/success counts. Retries produce separate attempt observations and one durable first milestone. Finished-attempt metrics can miss an attempt interrupted by process death; current job state and durable milestones survive that restart.
 

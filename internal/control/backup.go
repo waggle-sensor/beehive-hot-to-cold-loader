@@ -308,6 +308,18 @@ func (b *BackupService) Samples() observability.Snapshot {
 	for _, phase := range []string{"wait", "drain", "capture", "upload"} {
 		samples = append(samples, observability.Gauge("backup_last_phase_seconds", number(phase+"_seconds"), "phase", phase))
 	}
+	// One-hot current status phase (idle when none has been recorded yet).
+	currentPhase, _ := status["phase"].(string)
+	if currentPhase == "" {
+		currentPhase = "idle"
+	}
+	for _, phase := range []string{"idle", "waiting_boundary", "draining_writers", "copying", "uploading", "complete", "failed"} {
+		value := float64(0)
+		if phase == currentPhase {
+			value = 1
+		}
+		samples = append(samples, observability.Gauge("backup_phase", value, "phase", phase))
+	}
 	running := float64(0)
 	b.mu.Lock()
 	if b.busy {
