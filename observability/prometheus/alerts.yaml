@@ -77,3 +77,35 @@ groups:
         annotations:
           summary: 'API reader renewals are failing on {{ $labels.instance }}'
           description: 'Investigate API/coordinator connectivity before confirmed leases expire. Canceled client requests are excluded.'
+      - alert: ArchiveBackupFailed
+        expr: increase(hot_to_cold_backup_failures_total{job="beehive-hot-to-cold-loader"}[1h]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'State backup failed on {{ $labels.instance }}'
+          description: 'Inspect authenticated backup status. Incomplete uploads are not recoverable backups.'
+      - alert: ArchiveBackupMissingOrOld
+        expr: ((time() - hot_to_cold_backup_last_success_timestamp_seconds{job="beehive-hot-to-cold-loader"}) > 129600) and on(job,instance) (hot_to_cold_backup_configured == 1)
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'No verified state backup within 36 hours on {{ $labels.instance }}'
+          description: 'A zero success timestamp means no verified backup. Confirm the private destination and qualified CronJob are enabled.'
+      - alert: ArchiveBackupBarrierOverdue
+        expr: hot_to_cold_backup_barrier_age_seconds{job="beehive-hot-to-cold-loader"} > 600
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Backup write-admission barrier exceeded ten minutes on {{ $labels.instance }}'
+          description: 'Reads should remain available. Investigate capture cancellation and disk IO; do not revoke uncertain writer permits.'
+      - alert: ArchiveBackupRetentionFailed
+        expr: increase(hot_to_cold_backup_retention_failures_total{job="beehive-hot-to-cold-loader"}[1h]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Verified backup completed but retention cleanup failed on {{ $labels.instance }}'
+          description: 'Check private backup-prefix delete permissions and completion evidence. Lakehouse objects must not be removed.'

@@ -13,7 +13,7 @@
   "title": "Beehive hot-to-cold loader",
   "description": "Archival outcomes, active stages, backlog, read leases and Go process health. Detailed performance profiles remain separate.",
   "schemaVersion": 38,
-  "version": 5,
+  "version": 6,
   "editable": false,
   "tags": [
     "beehive",
@@ -2346,6 +2346,108 @@
       "options": {
         "mode": "markdown",
         "content": "Archive jobs advance oldest-first through durable stages. A state names the **next** work to perform, not a worker that is running it now. Only complete UTC days ending at or before `now - hot retention` are eligible. Failed work stays recoverable. `ROUTED` means cold data is queryable; it does not mean the hot copy has been deleted. Late jobs finish at `ROUTED` without hot deletion. Full detail: [docs/architecture.md](https://github.com/waggle-sensor/beehive-hot-to-cold-loader/blob/main/docs/architecture.md).\n\n| State | Work before advancing |\n| --- | --- |\n| `FENCING` | Wait for writer permits covering the day to release or expire plus drain grace. New writes to the fenced day become late receipts. |\n| `EXPORTING` | Export the source engine into primitive local Parquet, retaining replay sequence. |\n| `EXPORTED` | Normalize overwritten identities and prove equality against an independent Influx query. |\n| `RECONCILED` | Materialize expected rows, pack the lakehouse layout, and verify the build. |\n| `BUILT` | Publish files and commit an Iceberg snapshot; recognize an already committed job on retry. |\n| `COMMITTED` | Read back remote objects and perform fresh exact verification. |\n| `REMOTE_VERIFIED` | Activate the snapshot and advance contiguous coverage atomically in the control journal. |\n| `ROUTED` | For an archive job, wait for deletion enablement and old readers. Late jobs finish here without hot deletion. |\n| `DELETING` | Reverify the published data on every destructive attempt, then request the hot interval deletion. |\n| `DELETE_REQUESTED` | Query the interval to confirm it is empty; retry through `DELETING` if needed. |\n| `COMPLETE` | Persist completion and clean eligible local scratch. |"
+      }
+    },
+    {
+      "id": 53,
+      "type": "timeseries",
+      "title": "Last verified state backup",
+      "gridPos": {
+        "x": 0,
+        "y": 178,
+        "w": 8,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1000 * hot_to_cold_backup_last_success_timestamp_seconds{job=\"beehive-hot-to-cold-loader\",instance=~\"$instance\"}",
+          "legendFormat": "{{instance}} {{phase}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dateTimeAsIso"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 54,
+      "type": "timeseries",
+      "title": "Backup admission barrier",
+      "gridPos": {
+        "x": 8,
+        "y": 178,
+        "w": 8,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "hot_to_cold_backup_admission_closed{job=\"beehive-hot-to-cold-loader\",instance=~\"$instance\"}",
+          "legendFormat": "{{instance}} {{phase}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 55,
+      "type": "timeseries",
+      "title": "Backup phase duration",
+      "gridPos": {
+        "x": 16,
+        "y": 178,
+        "w": 8,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "hot_to_cold_backup_last_phase_seconds{job=\"beehive-hot-to-cold-loader\",instance=~\"$instance\"}",
+          "legendFormat": "{{instance}} {{phase}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
       }
     }
   ],
