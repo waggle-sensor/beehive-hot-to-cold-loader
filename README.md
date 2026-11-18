@@ -86,3 +86,7 @@ The [Grafana dashboard](observability/grafana/beehive-hot-to-cold-loader.json) c
 ## Research history
 
 This service was promoted from `sage-data-rework/archive-exporter`. Additional Design decisions and measured results remain in [plan 12](https://github.com/seanshahkarami/sage-data-rework/blob/main/plans/12_dynamic_archival_service.md). Historical saved runs retain their original locations; new service runs use this repository's state directory. See [validation tooling](testing/README.md) for workspace dependencies and fixture preparation.
+
+Online state backup and fail-closed disaster recovery are documented in
+[backup and recovery](docs/backup-recovery.md). The scheduled CronJob remains
+suspended until the isolated `testing/live/run.py --backup` drill passes.

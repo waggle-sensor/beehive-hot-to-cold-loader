@@ -45,8 +45,21 @@ Application names below use prefix `hot_to_cold_`:
 | `build_info{version,revision}` | Constant gauge 1 with available build metadata |
 | `profile_cleanup_files_total`, `profile_cleanup_errors_total` | Process-local counters: performance profiles removed and failed maintenance passes |
 | `profile_cleanup_last_success_timestamp_seconds` | Gauge: last successful enabled maintenance pass, zero before first success |
+| `backup_configured` | Gauge: 1 when scratch/destination backup configuration is active |
+| `backup_running` | Gauge: 1 while a backup operation is in progress |
+| `backup_admission_closed` | Gauge: 1 while new write/late/quarantine admission is closed for capture |
+| `backup_barrier_age_seconds` | Gauge: age of the current admission barrier; zero when admission is open |
+| `backup_last_success_timestamp_seconds` | Gauge: Unix time of the last verified off-node backup; zero before first success |
+| `backup_age_seconds` | Gauge: seconds since that last verified success; zero when none |
+| `backup_failures_total` | Process-local counter: failed backup operations |
+| `backup_retention_failures_total` | Process-local counter: verified backups whose older-backup cleanup failed |
+| `backup_blocked_writes_total` | Process-local counter: write/late/quarantine submissions rejected during capture |
+| `backup_last_bytes` | Gauge: bytes in the last completed snapshot archive |
+| `backup_last_duration_seconds` | Gauge: wall time of the last completed backup operation |
+| `backup_last_barrier_seconds` | Gauge: drain/capture barrier duration of the last completed backup |
+| `backup_last_phase_seconds{phase}` | Gauge: last completed wait/drain/capture/upload phase durations |
 
-`mode` is `archive` or `late`. `milestone` is `routed` or `complete`. `outcome` is `success`, `error` or `canceled`. Stage/state names are the fixed archival state machine. Scheduler operation and wait reason labels are bounded; an `unknown` wait series is initialized for future explicitly unknown reasons. No job IDs, days, plugins, owners, paths, tokens or error strings are labels. Configure environment/deployment labels at the Prometheus target instead.
+`mode` is `archive` or `late`. `milestone` is `routed` or `complete`. `outcome` is `success`, `error` or `canceled`. Backup `phase` is `wait`, `drain`, `capture` or `upload`. Stage/state names are the fixed archival state machine. Scheduler operation and wait reason labels are bounded; an `unknown` wait series is initialized for future explicitly unknown reasons. No job IDs, days, plugins, owners, paths, tokens or error strings are labels. Configure environment/deployment labels at the Prometheus target instead.
 
 ROUTED means verified cold data is active for reads. It does not mean hot data was deleted. COMPLETE is the separate durable job outcome. Waits do not inflate failure/success counts. Retries produce separate attempt observations and one durable first milestone. Finished-attempt metrics can miss an attempt interrupted by process death; current job state and durable milestones survive that restart.
 
@@ -98,3 +111,11 @@ Saved benchmark fixtures should keep their original evidence. Do not start the s
 ## API reader-renewal metrics
 
 The matching API emits `hot_to_cold_read_renewals_total{outcome}` and `hot_to_cold_read_renewal_duration_seconds{outcome}` on its own `/metrics` endpoint. Outcomes are `success`, `error`, `canceled`; transport and invalid-view failures are observed at the API, even when the coordinator receives nothing. These counters/histograms reset on API restart. Metrics callbacks do not authorize or extend a lease; the tiered package remains independent of Prometheus. Scrape the API separately. The dashboard's API renewal row uses separate API job/instance filters, so loader health cannot mask API renewal failures. Reuse an existing API scrape or merge the [optional API scrape example](../observability/prometheus/api-scrape.yaml).
+
+## Online state backup
+
+Blocked-write counts do not mean lost broker messages. Latest status/success is
+stored on the separate scratch volume; restoration outcomes are recorded in the
+offline recovery approval report. Read failures/renewal errors should remain
+zero during backup. See [backup and recovery](backup-recovery.md) for alerts and
+qualification limits.

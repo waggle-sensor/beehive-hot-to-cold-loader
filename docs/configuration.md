@@ -92,6 +92,17 @@ The three coordination secrets must each be at least 32 bytes and differ. Inject
 
 Metrics do not require `--profile-steps`. Other build, normalization, and operation reports provide separate evidence. Retention only removes allowlisted performance profiles from completed jobs, preserving recovery/verification records and unknown legacy completion times. See [metrics](metrics.md).
 
+## Online state backups
+
+| Flag | Environment | Default / requirement |
+| --- | --- | --- |
+| — | `HOT_TO_COLD_BACKUP_SCRATCH` | Unset disables backup creation; separate writable mount outside the primary state tree |
+| — | `HOT_TO_COLD_BACKUP_URL` | Required when scratch is set; private sibling `https://host/sage/cold/backups/hot-to-cold-loader` |
+| — | `HOT_TO_COLD_BACKUP_KEEP` | `30`; positive completed backups retained per source/table identity |
+| — | `HOT_TO_COLD_BACKUP_IMAGE` | Unset; qualified deployed image reference/digest recorded in the backup manifest |
+
+Keep `HOT_TO_COLD_BACKUP_IMAGE` synchronized with the workload image. Only the admin token can call backup routes. See [backup and recovery](backup-recovery.md) for admission behavior, deadlines, private-prefix requirements, retention and the offline restore commands.
+
 ## Configure sibling services
 
 These are settings in the sibling applications, not environment variables read by this coordinator:

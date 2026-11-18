@@ -8,6 +8,7 @@ Start with [architecture](architecture.md) to understand the service, or [config
 | [Configuration](configuration.md) | Operators: complete runtime settings and sibling-service integration |
 | [Deployment](deployment.md) | Operators: writer migration, reader migration, bootstrap, and deletion rollout |
 | [Operations](operations.md) | Operators: monitoring, restart, recovery, leases, and retained state |
+| [Backup and recovery](backup-recovery.md) | Operators: online snapshots, private Pelican backups, retention and fail-closed restore |
 | [Metrics](metrics.md) | Operators: Prometheus, Grafana, alerts, and profile retention |
 | [Development](development.md) | Developers: source map, extension points, and verification requirements |
 | [CI/CD](ci-cd.md) | Developers: GitHub Actions jobs, native smoke selection, and image publish rules |
