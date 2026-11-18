@@ -57,7 +57,7 @@ A verified backup remains `complete` if only retention cleanup fails; status rec
 | `complete` | Off-node verified backup (only this phase counts as success) |
 | `failed` | Operation ended without a verified backup; admission is open |
 
-The 10-minute drain/capture budget begins after the scheduler yields its boundary; waiting for a long worker step is separately bounded to 30 minutes. There is a six-hour remote publication deadline. A restart fails any interrupted operation and opens admission; no abandoned pause is carried into the new process.
+The one-hour drain/capture budget begins after the scheduler yields its boundary; waiting for a long worker step is separately bounded to 30 minutes. There is a six-hour remote publication deadline. A restart fails any interrupted operation and opens admission; no abandoned pause is carried into the new process.
 
 New write grants and late/quarantine submissions are rejected during capture and receive 503 with `Retry-After: 30`. The ingestion loader leaves deliveries unacknowledged, closes its connection and restarts/retries after the delay. For a mixed hot/late batch rejected **before any hot write was attempted**, it releases the unused permit before replay. A failed/uncertain Influx write never releases a permit as successful just to unblock backup. Healthy existing writers continue renewing.
 Expired permits follow the existing expiry/grace policy; expiry is not server-side cancellation. A drain timeout fails the backup and reopens admission.

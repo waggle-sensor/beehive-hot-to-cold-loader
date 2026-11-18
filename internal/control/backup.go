@@ -37,7 +37,7 @@ type BackupService struct {
 	// Boundary hands the drain+copy closure to the scheduler loop.
 	Boundary chan func()
 	// WaitTimeout bounds waiting for that handoff (default 30m).
-	// CaptureTimeout bounds drain+copy after handoff (default 10m).
+	// CaptureTimeout bounds drain+copy after handoff (default 1h).
 	WaitTimeout, CaptureTimeout time.Duration
 
 	mu     sync.Mutex
@@ -149,7 +149,7 @@ func (b *BackupService) run(id, scratchRoot string) {
 	}
 	captureLimit := b.CaptureTimeout
 	if captureLimit == 0 {
-		captureLimit = 10 * time.Minute
+		captureLimit = time.Hour
 	}
 	startedAt := time.Now()
 	fail := func(err error) {
