@@ -18,20 +18,9 @@ Run `beehive-hot-to-cold-loader --help` for the executable's flag reference. Fla
 | `--bootstrap-lakehouse` | — | Unset; audited read-only source, paired with `--bootstrap-before` |
 | `--bootstrap-before` | — | Unset; exclusive end of audited source coverage, after archive start |
 
-Set the same `COLD_NAMESPACE` and `COLD_TABLE_NAME` on the loader and
-`beehive-data-api`. For example, `telemetry` and `readings` select
-`telemetry.readings` at `<root>/telemetry/readings/`. These settings change
-both the catalog identifier and storage location; no suffix is appended to
-the table name. Identifiers must start with an ASCII letter or underscore
-and contain only ASCII letters, digits, or underscores. Empty values,
-slashes, dots, whitespace, and traversal strings are rejected at startup.
-Bootstrap sources use the same configured namespace and table name.
+Set the same `COLD_NAMESPACE` and `COLD_TABLE_NAME` on the loader and `beehive-data-api`. For example, `telemetry` and `readings` select `telemetry.readings` at `<root>/telemetry/readings/`. These settings change both the catalog identifier and storage location; no suffix is appended to the table name. Identifiers must start with an ASCII letter or underscore and contain only ASCII letters, digits, or underscores. Empty values, slashes, dots, whitespace, and traversal strings are rejected at startup. Bootstrap sources use the same configured namespace and table name.
 
-Namespace and table name are durably bound even in coordinate-only mode.
-Changing either on an existing journal is rejected; published metadata must
-also belong to the configured table. This is configuration for a fresh table,
-not an automatic rename or migration of existing data. To keep reading an
-existing table, configure its actual namespace and name explicitly.
+Namespace and table name are durably bound even in coordinate-only mode. Changing either on an existing journal is rejected; published metadata must also belong to the configured table. This is configuration for a fresh table, not an automatic rename or migration of existing data. To keep reading an existing table, configure its actual namespace and name explicitly.
 
 Bucket, lakehouse, and coverage start are bound to the control journal. Source bucket ID, organization, and bootstrap settings are also durably bound during archival startup. Do not repoint existing state at another source or lakehouse. A new catalog refuses to silently adopt an occupied remote table root.
 
