@@ -100,10 +100,10 @@ def prepare(args):
     run_id = uuid.uuid4().hex
     root = local(args.run_dir or ARCHIVER / "state" / ("live-" + run_id))
     root.mkdir(mode=0o700, parents=True, exist_ok=False)
-    for name in ("influx", "coordinator", "reports"):
+    for name in ("influx", "coordinator", "reports", "backup-scratch"):
         (root / name).mkdir(mode=0o700)
     # Curated snapshots exclude .git, datasets, state, caches and signing keys.
-    copy_source(ARCHIVER, root / "archiver-build", ["go.mod", "go.sum", "main.go", "internal", "Dockerfile"])
+    copy_source(ARCHIVER, root / "archiver-build", ["go.mod", "go.sum", "main.go", "cmd", "internal", "Dockerfile"])
     copy_source(WORKSPACE / "beehive-data-api", root / "api-build", ["go.mod", "go.sum", "main.go", "internal", "Dockerfile"])
     copy_source(WORKSPACE / "beehive-influxdb-loader", root / "loader-build", ["requirements.txt", "main.py", "archive.py"])
     shutil.copy2(HERE / "Dockerfile.loader", root / "loader-build/Dockerfile")
@@ -128,7 +128,9 @@ def prepare(args):
               "ARCHIVER_SOURCE": str(root / "archiver-build"), "API_SOURCE": str(root / "api-build"),
               "ARCHIVER_IMAGE": images.get("archiver", ""), "API_IMAGE": images.get("api", ""),
               "LOADER_IMAGE": images.get("loader", ""),
-              "COORDINATE_ONLY": "true", "DELETE_ENABLED": "false"}
+              "COORDINATE_ONLY": "true", "DELETE_ENABLED": "false",
+              "BACKUP_SCRATCH": "/backups" if getattr(args,"backup",False) else "",
+              "LOADER_RESTART_POLICY": "on-failure" if getattr(args,"backup",False) else "no"}
     for name in ("LOADER_TOKEN", "READER_TOKEN", "ADMIN_TOKEN", "INFLUX_TOKEN", "INFLUX_PASSWORD", "BROKER_PASSWORD"):
         config[name] = secrets.token_hex(32)
     save(root / "private-config.json", config)
@@ -136,7 +138,7 @@ def prepare(args):
                 "origin": origin, "run_id": run_id, "phase": "prepared", "passed": False,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "execution_policy":{"normalization_threads":16,"normalization_merge_fan_in":16,"normalization_merge_concurrency":1,"comparison_threads":16,"build_threads":16,"build_sort_threads":2,"canonical_reuse":True,"build_canonicalization":"tag_dictionary","reconciliation_canonicalization":"raw_tag_dictionary","verification_canonicalization":"local_dictionary","partitioning":"fixed"},
-                "images": images,
+                "images": images, "backup_drill": bool(getattr(args,"backup",False)),
                 "source_sha256":{name:tree_hash(root/name) for name in ("archiver-build","api-build","loader-build","probe-build")}}
     save(root / "run.json", manifest)
     return root
@@ -177,6 +179,37 @@ class Run:
         self.compose("up", "-d", "--no-deps", "--force-recreate", "archiver")
         self.compose("run", "--rm", "--no-deps", "probe", "ready")
 
+    def restore_drill(self):
+        """Only this generated fixture's state is moved; original copies are retained."""
+        self.phase("backup-restore-drill")
+        self.compose("stop", "loader", "api", "archiver")
+        def recover(report, label, expect_blocked):
+            current = self.root / "coordinator"
+            current.rename(self.root / ("coordinator-before-" + label))
+            current.mkdir(mode=0o700)
+            status = json.loads((self.root / "reports" / (report + ".json")).read_text())["backup"]
+            bundle = "/backups/" + label + ".tar.gz"
+            prefix = ["run", "--rm", "--no-deps", "archiver", "state-backup"]
+            self.compose(*prefix, "download", "--lakehouse=" + self.config["LAKEHOUSE"],
+                         "--state=/state", "--identity=" + status["identity"], "--id=" + status["id"], "--bundle=" + bundle)
+            self.compose(*prefix, "restore", "--state=/state", "--bundle=" + bundle, "--confirm-clients-stopped")
+            command = self.command + prefix + ["approve", "--lakehouse=" + self.config["LAKEHOUSE"], "--state=/state",
+                                              "--confirm-clients-stopped", "--accept-post-backup-data-loss"]
+            approved = subprocess.run(command, env={**os.environ, **self.config}, capture_output=True, text=True)
+            if expect_blocked:
+                if (approved.returncode == 0 or not (current / "restore-pending.json").exists()
+                        or "remote publication advanced or changed" not in approved.stderr):
+                    raise AssertionError("stale restore did not fail for the expected publication conflict")
+                save(self.root / "reports/stale-restore.json", {"passed":True,"activation_blocked":True,
+                                                               "reason":"remote publication advanced or changed"})
+            elif approved.returncode:
+                raise RuntimeError("latest restore approval failed; inspect isolated fixture state")
+        recover("online-backup-old", "stale", True)
+        recover("online-backup", "latest", False)
+        self.archiver(coordinate=False, deletion=False)
+        self.compose("up", "-d", "--no-deps", "api", "loader")
+        self.probe("backup-restored")
+
     def execute(self):
         if self.manifest["phase"] != "prepared":
             raise ValueError("only a prepared, never-started run can execute; use a fresh run after failure")
@@ -215,15 +248,21 @@ class Run:
             self.probe("recover-and-release")
             self.probe("archive-and-pin")
             self.probe("fenced-late-published")
+            if self.manifest.get("backup_drill"):
+                self.probe("online-backup-old")
             self.compose("stop", "loader")
             self.probe("publish-redelivery")
             self.compose("up", "-d", "--no-deps", "loader")
             self.probe("late-corrected")
+            if self.manifest.get("backup_drill"):
+                self.probe("online-backup")
             # Only this private bucket/stack participates; all its readers/writers
             # are coordinated. The held old hot read must prevent deletion.
             self.archiver(coordinate=False, deletion=True)
             self.probe("deletion-blocked")
             self.probe("release-and-finish")
+            if self.manifest.get("backup_drill"):
+                self.restore_drill()
             self.manifest["passed"] = True
             self.phase("complete")
         except BaseException as error:
@@ -246,6 +285,7 @@ class Run:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--backup", action="store_true", help="include online backup and stale/latest restore drills on this isolated fixture")
     parser.add_argument("--prepare-only", action="store_true", help="snapshot sources/configuration without Docker or network IO")
     parser.add_argument("--prepared", type=Path, help="execute an existing never-started prepared run")
     parser.add_argument("--stop", type=Path, help="stop only the recorded isolated project")

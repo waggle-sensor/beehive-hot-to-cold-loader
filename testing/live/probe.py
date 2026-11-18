@@ -576,11 +576,124 @@ def clean_status():
     return state if all(state[key]==0 for key in ("writers","readers","late_pending","jobs_pending","deletions_pending","jobs_failed","quarantined")) else None
 
 
+def prepare_backup_prefix():
+    """Provision only this run's sibling backup directory, with a separate token."""
+    import jwt
+    lakehouse = os.environ["LAKEHOUSE"]
+    parsed = urlsplit(lakehouse)
+    expected_path = "/sage/cold-test-" + os.environ["RUN_ID"] + "/lakehouse"
+    if parsed.path != expected_path:
+        raise AssertionError("backup fixture prefix mismatch")
+    path = parsed.path.removesuffix("/lakehouse") + "/backups"
+    now = int(time.time())
+    claims = dict(sub="sage-backup-fixture",aud="ANY",ver="scitoken:2.0",
+                  scope="read:"+path.removeprefix("/sage")+" write:"+path.removeprefix("/sage"),
+                  iss="https://sagecontinuum.org",iat=now-60,nbf=now-60,exp=now+900,jti=uuid.uuid4().hex)
+    bearer = jwt.encode(claims,Path(os.environ["PELICAN_KEY_PATH"]).read_bytes(),algorithm="ES256",headers={"kid":"3cfa"})
+    observed = {}
+    def observe(error):
+        observed["code"] = error.code
+    try:
+        call(parsed.scheme+"://"+parsed.netloc+path, method="MKCOL",
+             headers={"Authorization":"Bearer "+bearer}, error_observer=observe)
+    except RuntimeError:
+        if observed.get("code") != 405:
+            raise
+
+
+def online_backup_version(version):
+    prepare_backup_prefix()
+    view = acquire_read("backup-" + version)
+    owner = os.environ["RUN_ID"] + "/backup-probe"
+    permit = os.environ["RUN_ID"] + "/backup-drain-" + version
+    coord("/v1/writes/acquire", {"id":permit,"owner":owner,"days":[BOUNDS[1][:10]]}, "LOADER")
+    before_acks = broker_queue().get("message_stats",{}).get("ack",0)
+    started = coord("/v1/backups/create")
+    checks = 0
+    deadline = time.monotonic() + 900
+    released = False
+    try:
+        wait("backup admission closed while existing writer drains",
+             lambda: coord("/v1/backups/status").get("phase") == "draining_writers", timeout=60)
+        for route, payload in (
+            ("/v1/quarantine", {"id":permit+"/invalid","payload":"backup-gate-probe"}),
+            ("/v1/late", {"id":permit+"/late","records":[dict(time=START+194,name="live.temp",tags={"node":"n1"},kind="float",value="11.7")]}),
+        ):
+            observed = {}
+            def observe(error):
+                observed.update(code=error.code,retry_after=error.headers.get("Retry-After"))
+            try:
+                call("http://archiver:10001"+route, {"bucket":BUCKET,**payload},
+                     headers={"Content-Type":"application/json","Authorization":"Bearer "+os.environ["LOADER_TOKEN"]},
+                     error_observer=observe)
+            except RuntimeError:
+                if observed.get("code") != 503 or not observed.get("retry_after"):
+                    raise
+            else:
+                raise AssertionError("backup accepted a new write submission")
+        def rejected_writes():
+            raw,_=call("http://archiver:10001/metrics")
+            matches=re.findall(r"(?m)^hot_to_cold_backup_blocked_writes_total ([0-9.eE+-]+)$",raw.decode())
+            if len(matches)!=1:
+                raise AssertionError("backup admission metric unavailable")
+            return float(matches[0])
+        rejected_before_delivery=rejected_writes()
+        # Replay the identical hot point: broker delivery changes, observations do not.
+        publish([row for row in expected(version) if row["time"] >= MID],"backup-hot-retry-"+version)
+        wait("real loader rejected by maintenance admission",
+             lambda: rejected_writes()>rejected_before_delivery, timeout=60)
+        wait("blocked batch retained for broker replay",
+             lambda: broker_queue().get("messages_ready",0) > 0, timeout=60)
+        if broker_queue().get("message_stats",{}).get("ack",0) != before_acks:
+            raise AssertionError("blocked delivery was acknowledged")
+        for _ in range(3):
+            check_api("backup-"+version,expected(version))
+            coord("/v1/reads/renew",{"id":view["id"],"owner":os.environ["RUN_ID"]+"/probe"},"READER")
+            coord("/v1/writes/renew",{"id":permit,"owner":owner},"LOADER")
+            checks += 1
+        coord("/v1/writes/release",{"id":permit,"owner":owner},"LOADER")
+        released = True
+        while time.monotonic() < deadline:
+            check_api("backup-"+version,expected(version))
+            coord("/v1/reads/renew",{"id":view["id"],"owner":os.environ["RUN_ID"]+"/probe"},"READER")
+            checks += 1
+            status = coord("/v1/backups/status")
+            if status.get("id") != started["id"]:
+                raise AssertionError("backup operation changed")
+            if status.get("phase") == "failed":
+                raise AssertionError("backup failed: " + str(status.get("error")))
+            if status.get("phase") == "complete":
+                wait("maintenance-blocked delivery replayed",lambda:drained(before_acks+1))
+                equal(source_rows(),expected("seed"))
+                return {"backup":status,"api_cycles":checks,"version":version,
+                        "blocked_batch_unacknowledged_then_replayed":True,"late_and_quarantine_blocked":True}
+            time.sleep(0.1)
+        raise TimeoutError("backup did not complete")
+    finally:
+        if not released:
+            coord("/v1/writes/release",{"id":permit,"owner":owner},"LOADER")
+        release_read(view)
+
+
+def online_backup_old():
+    return online_backup_version("fenced")
+
+
+def online_backup():
+    return online_backup_version("final")
+
+
+def backup_restored():
+    return {"status":coord("/v1/status"),"api":check_api("backup-restored",expected("final")),
+            "hot_rows":source_rows(),"post_deletion_restore":True}
+
+
 def main():
     stage=sys.argv[1]
     stages={name.replace("_","-"):value for name,value in globals().copy().items() if name in (
         "bootstrap","ready","seed","fenced","recover_and_release","archive_and_pin","fenced_late_published",
-        "publish_redelivery","late_corrected","deletion_blocked","release_and_finish")}
+        "publish_redelivery","late_corrected","deletion_blocked","release_and_finish",
+        "online_backup_old","online_backup","backup_restored")}
     try:
         result=stages[stage]()
         save(stage,{"passed":True,**result})

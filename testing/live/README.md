@@ -84,3 +84,16 @@ shell, defaulting to `sage` and `observations`, and forward them to the archiver
 API, and probe. All three derive the table path from those saved settings.
 Set them before preparation to exercise a custom table in an isolated test
 root; restarting a prepared run does not change its persisted identity.
+
+## Online backup and recovery drill
+
+Pass `--backup` for the new online backup/restore qualification. It adds a
+separate scratch mount, two verified private sibling-prefix backups around
+late corrections, repeated API/client reads and lease renewals, rejection of
+an older restore after publication advances, and restoration of the current
+backup after fixture hot deletion. Original local state is renamed and retained
+for diagnosis, never deleted. The same isolated `cold-test-<uuid>` ownership
+checks apply. The final restored coordinator runs with deletion disabled.
+See [the backup procedure](../../docs/backup-recovery.md) for result reports and
+production limitations. This opt-in gate requires images containing the new
+backup commands; a historical pinned image is not a pass for this feature.
