@@ -1,5 +1,5 @@
 // pelican.go is the only remote object client. Every URL must stay inside the
-// configured warehouse, and this client never deletes an object.
+// configured lakehouse, and this client never deletes an object.
 
 package storage
 
@@ -31,38 +31,38 @@ import (
 // Pelican confines every IO operation and token to a configured isolated root.
 // Data objects stream through disk. Remove is disabled; maintenance is separate.
 type Pelican struct {
-	Base     *url.URL // the base URL of the Pelican instance
-	Prefix   string // the prefix of the warehouse
+	Table    TableIdentity
+	Base     *url.URL          // the base URL of the Pelican instance
+	Prefix   string            // the prefix of the lakehouse
 	Key      *ecdsa.PrivateKey // the private key for the Pelican instance
-	Client   *http.Client // the HTTP client
-	Scratch  string // the scratch directory for the Pelican instance
-	ReadOnly bool // whether the Pelican instance is read-only
+	Client   *http.Client      // the HTTP client
+	Scratch  string            // the scratch directory for the Pelican instance
+	ReadOnly bool              // whether the Pelican lakehouse is read-only
 }
 
-// NewPelican opens a read-write client for the destination warehouse.
-func NewPelican(warehouse, keyPath, scratch string) (*Pelican, error) {
-	return newPelican(warehouse, keyPath, scratch, false)
+// NewPelican opens a read-write client for the destination lakehouse.
+func NewPelican(lakehouse, keyPath, scratch string, table TableIdentity) (*Pelican, error) {
+	return newPelican(lakehouse, keyPath, scratch, table, false)
 }
 
 // NewPelicanReader opens a client that refuses writes. Bootstrap sources use it.
-func NewPelicanReader(warehouse, keyPath, scratch string) (*Pelican, error) {
-	return newPelican(warehouse, keyPath, scratch, true)
+func NewPelicanReader(lakehouse, keyPath, scratch string, table TableIdentity) (*Pelican, error) {
+	return newPelican(lakehouse, keyPath, scratch, table, true)
 }
 
-// newPelican creates a new Pelican instance for the given warehouse, key path, and scratch directory.
-func newPelican(warehouse, keyPath, scratch string, readOnly bool) (*Pelican, error) {
-	u, e := url.Parse(warehouse)
+// newPelican creates a new Pelican instance for the given lakehouse, key path, and scratch directory.
+func newPelican(lakehouse, keyPath, scratch string, table TableIdentity, readOnly bool) (*Pelican, error) {
+	u, e := url.Parse(lakehouse)
 	if e != nil {
 		return nil, e
 	}
 	clean := path.Clean(u.Path)
 	parts := strings.Split(strings.Trim(clean, "/"), "/")
-	allowedPrefix := regexp.MustCompile(`^cold-storage-archive-[A-Za-z0-9_-]+$`)
-	if readOnly {
-		allowedPrefix = regexp.MustCompile(`^cold-storage-[A-Za-z0-9_-]+$`)
-	}
-	if u.Scheme != "https" || u.Host == "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil || u.RawPath != "" || clean != u.Path || len(parts) != 3 || parts[0] != "sage" || !allowedPrefix.MatchString(parts[1]) || parts[2] != "warehouse" || strings.Contains(parts[1], "..") {
-		return nil, errors.New("warehouse must be https://host/sage/cold-storage-archive-<unique>/warehouse")
+	allowedPrefix := regexp.MustCompile(`^cold-test-[A-Za-z0-9_-]+$`)
+	validRoot := len(parts) == 3 && parts[0] == "sage" && (parts[1] == "cold" || allowedPrefix.MatchString(parts[1]))
+	validSuffix := len(parts) == 3 && parts[2] == "lakehouse"
+	if u.Scheme != "https" || u.Host == "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.User != nil || u.RawPath != "" || clean != u.Path || !validRoot || !validSuffix {
+		return nil, errors.New("lakehouse must be https://host/sage/cold/lakehouse or https://host/sage/cold-test-<unique>/lakehouse")
 	}
 	raw, e := os.ReadFile(keyPath)
 	if e != nil {
@@ -82,13 +82,15 @@ func newPelican(warehouse, keyPath, scratch string, readOnly bool) (*Pelican, er
 		return nil, errors.New("Pelican ES256 key required")
 	}
 	c := &http.Client{Timeout: 20 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	return &Pelican{Base: u, Prefix: "/" + parts[1], Key: k, Client: c, Scratch: scratch, ReadOnly: readOnly}, nil
+	// Scope lakehouse tokens to the entire root, relative to /sage.
+	prefix := strings.TrimPrefix(u.Path, "/sage")
+	return &Pelican{Table: table, Base: u, Prefix: prefix, Key: k, Client: c, Scratch: scratch, ReadOnly: readOnly}, nil
 }
 
 // Token returns a short-lived bearer token. Write tokens are minted only for PUT.
 func (p *Pelican) Token(write bool) (string, error) { return p.token(write, 20*time.Minute) }
 
-// token signs a token confined to this warehouse prefix.
+// token signs a token confined to this lakehouse prefix.
 func (p *Pelican) token(write bool, lifetime time.Duration) (string, error) {
 	now := time.Now().Unix()
 	scope := "read:" + p.Prefix
@@ -113,14 +115,14 @@ func (p *Pelican) token(write bool, lifetime time.Duration) (string, error) {
 	return unsigned + "." + base64.RawURLEncoding.EncodeToString(sig), nil
 }
 
-// validate accepts only an HTTPS object under this warehouse's sage/obs prefix.
+// validate accepts only an HTTPS object under the configured table prefix.
 func (p *Pelican) validate(name string) (string, error) {
 	u, e := url.Parse(name)
 	if e != nil {
 		return "", e
 	}
-	if u.Scheme != "https" || u.Host != p.Base.Host || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.RawPath != "" || path.Clean(u.Path) != u.Path || !strings.HasPrefix(u.Path, p.Base.Path+"/sage/obs/") {
-		return "", errors.New("object outside managed warehouse")
+	if u.Scheme != "https" || u.Host != p.Base.Host || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.RawPath != "" || path.Clean(u.Path) != u.Path || !strings.HasPrefix(u.Path, p.Table.Location(p.Base.Path)+"/") {
+		return "", errors.New("object outside managed lakehouse")
 	}
 	return u.String(), nil
 }
@@ -307,7 +309,7 @@ var _ iceio.WriteFileIO = (*Pelican)(nil)
 
 // Head resolves the published version hint to a metadata URL.
 func (p *Pelican) Head() (string, error) {
-	hint, e := p.ReadFile(p.Base.String() + "/sage/obs/metadata/version-hint.text")
+	hint, e := p.ReadFile(p.Table.Location(p.Base.String()) + "/metadata/version-hint.text")
 	if e != nil {
 		return "", e
 	}
@@ -315,5 +317,5 @@ func (p *Pelican) Head() (string, error) {
 	if !regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._-]*$`).MatchString(stem) || strings.Contains(stem, "..") {
 		return "", errors.New("invalid bootstrap metadata hint")
 	}
-	return p.Base.String() + "/sage/obs/metadata/" + stem + ".metadata.json", nil
+	return p.Table.Location(p.Base.String()) + "/metadata/" + stem + ".metadata.json", nil
 }

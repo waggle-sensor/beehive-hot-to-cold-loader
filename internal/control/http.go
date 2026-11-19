@@ -16,9 +16,10 @@ import (
 // Server admits writers and readers and reports aggregate status.
 type Server struct {
 	MetricsHandler                       http.Handler
-	Store                                *Store        // the store
-	LoaderToken, ReaderToken, AdminToken string        // the loader, reader, and admin tokens
-	Retention                            time.Duration // the retention period
+	Store                                *Store
+	LoaderToken, ReaderToken, AdminToken string
+	Retention                            time.Duration
+	Backups                              *BackupService // admin-only /v1/backups/*; nil returns 503
 }
 
 // ServeHTTP serves public metrics and authenticates coordination/status commands.
@@ -42,6 +43,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		expected = s.ReaderToken
 	}
 	if r.URL.Path == "/v1/status" {
+		expected = s.AdminToken
+	}
+	// Backup create/status use the admin token only.
+	isBackupRoute := strings.HasPrefix(r.URL.Path, "/v1/backups/")
+	if isBackupRoute {
 		expected = s.AdminToken
 	}
 
@@ -76,6 +82,33 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request", 400)
 		return
 	}
+	if isBackupRoute {
+		if s.Backups == nil {
+			http.Error(w, "backup service unavailable", 503)
+			return
+		}
+		switch r.URL.Path {
+		case "/v1/backups/create":
+			id, startErr := s.Backups.Start()
+			if startErr != nil {
+				code := http.StatusConflict
+				if errors.Is(startErr, ErrBackupUnavailable) {
+					code = http.StatusServiceUnavailable
+				}
+				http.Error(w, startErr.Error(), code)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": id, "state": "running"})
+		case "/v1/backups/status":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(s.Backups.Status())
+		default:
+			http.NotFound(w, r)
+		}
+		return
+	}
 	if request.Bucket != s.Store.Bucket {
 		http.Error(w, "bucket mismatch", 400)
 		return
@@ -105,6 +138,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		// Backup capture closes admission briefly; writers should retry.
+		if errors.Is(err, ErrAdmissionClosed) {
+			w.Header().Set("Retry-After", "30")
+			http.Error(w, err.Error(), 503)
+			return
+		}
 		http.Error(w, err.Error(), 409)
 		return
 	}

@@ -94,7 +94,7 @@ func TestDurableMilestonesAndAtomicRollback(t *testing.T) {
 func TestMilestoneBackfillAndRestart(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "journal.db")
 	open := func() *Store {
-		s, err := Open(path, "waggle", "warehouse", "2025-03-01")
+		s, err := Open(path, "waggle", "lakehouse", "2025-03-01")
 		if err != nil {
 			t.Fatal(err)
 		}

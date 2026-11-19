@@ -289,12 +289,13 @@ def check_api(label, rows):
 
 def token(write=False):
     import jwt
-    warehouse = os.environ["WAREHOUSE"]
-    prefix = urlsplit(warehouse).path.split("/")[2]
-    if not re.fullmatch("cold-storage-archive-live-"+os.environ["RUN_ID"], prefix):
+    lakehouse = os.environ["LAKEHOUSE"]
+    lakehouse_path = urlsplit(lakehouse).path
+    prefix = lakehouse_path.split("/")[2]
+    if lakehouse_path != "/sage/cold-test-"+os.environ["RUN_ID"]+"/lakehouse":
         raise AssertionError("remote prefix is not this run's generated prefix")
     now = int(time.time())
-    claims = dict(sub="sage-live-gate", aud="ANY", ver="scitoken:2.0", scope="read:/"+prefix+(" write:/"+prefix if write else ""),
+    claims = dict(sub="sage-live-gate", aud="ANY", ver="scitoken:2.0", scope="read:/"+prefix+"/lakehouse"+(" write:/"+prefix+"/lakehouse" if write else ""),
                   iss="https://sagecontinuum.org", iat=now-60, nbf=now-60, exp=now+900, jti=uuid.uuid4().hex)
     return jwt.encode(claims, Path(os.environ["PELICAN_KEY_PATH"]).read_bytes(), algorithm="ES256", headers={"kid":"3cfa"})
 
@@ -303,13 +304,21 @@ def sqlquote(value):
     return "'"+value.replace("'", "''")+"'"
 
 
+def table_path():
+    namespace = os.environ.get("COLD_NAMESPACE", "sage")
+    name = os.environ.get("COLD_TABLE_NAME", "observations")
+    if not all(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in (namespace, name)):
+        raise ValueError("invalid Iceberg namespace or table name")
+    return "/" + namespace + "/" + name
+
+
 def remote_rows(metadata):
-    warehouse = os.environ["WAREHOUSE"]
-    if not metadata.startswith(warehouse+"/sage/obs/metadata/") or not metadata.endswith(".metadata.json"):
-        raise AssertionError("snapshot outside isolated managed warehouse")
+    lakehouse = os.environ["LAKEHOUSE"]
+    if not metadata.startswith(lakehouse+table_path()+"/metadata/") or not metadata.endswith(".metadata.json"):
+        raise AssertionError("snapshot outside isolated managed lakehouse")
     keys = ",".join(sqlquote(tag) for tag in TAGS)
     full_meta = "map_concat(meta,map_from_entries(list_filter(list_zip(["+keys+"],["+",".join(TAGS)+"]),lambda x: x[2] IS NOT NULL)))"
-    sql = "SET TimeZone='UTC'; SET memory_limit='256MB'; LOAD httpfs; LOAD iceberg; CREATE SECRET live_read (TYPE http,SCOPE "+sqlquote(warehouse)+",BEARER_TOKEN "+sqlquote(token())+"); SELECT epoch_ns(time) AS time,name,to_json(value)::VARCHAR AS value,to_json("+full_meta+")::VARCHAR AS meta FROM iceberg_scan("+sqlquote(metadata)+");"
+    sql = "SET TimeZone='UTC'; SET memory_limit='256MB'; LOAD httpfs; LOAD iceberg; CREATE SECRET live_read (TYPE http,SCOPE "+sqlquote(lakehouse)+",BEARER_TOKEN "+sqlquote(token())+"); SELECT epoch_ns(time) AS time,name,to_json(value)::VARCHAR AS value,to_json("+full_meta+")::VARCHAR AS meta FROM iceberg_scan("+sqlquote(metadata)+");"
     result = subprocess.run(["duckdb", "-batch", "-bail", "-json"], input=sql, text=True, capture_output=True, timeout=180)
     if result.returncode:
         raise RuntimeError("pinned remote DuckDB read failed; SQL/stderr withheld because it contains a credential")
@@ -326,17 +335,17 @@ def remote_rows(metadata):
 def bootstrap(declare_broker=True):
     version = subprocess.run(["duckdb", "-version"], capture_output=True, text=True, check=True).stdout
     if not re.search(r"\bv2\.0\.\d", version): raise AssertionError("DuckDB 2.0.x required")
-    warehouse = os.environ["WAREHOUSE"]
+    lakehouse = os.environ["LAKEHOUSE"]
     auth = {"Authorization": "Bearer "+token(write=True)}
-    # A new UUID is allocated for every run. Never reuse a published warehouse.
+    # A new UUID is allocated for every run. Never reuse a published lakehouse.
     try:
-        with urlopen(Request(warehouse+"/sage/obs/metadata/version-hint.text", headers=auth), timeout=60):
-            raise AssertionError("generated prefix already has a published warehouse")
+        with urlopen(Request(lakehouse+table_path()+"/metadata/version-hint.text", headers=auth), timeout=60):
+            raise AssertionError("generated prefix already has a published lakehouse")
     except HTTPError as error:
         if error.code != 404: raise RuntimeError("new-prefix preflight returned HTTP "+str(error.code)) from None
-    # Keep the origin marker outside sage/obs. A file there creates the managed
+    # Keep the origin marker outside the configured table. A file there creates the managed
     # table collection, and a new catalog refuses to adopt an occupied root.
-    marker = warehouse+"/validation/live-gate.json"
+    marker = lakehouse+"/validation/live-gate.json"
     data = json.dumps({"run_id":os.environ["RUN_ID"]}).encode()
     call(marker, data, method="PUT", headers={**auth,"Content-Type":"application/json"})
     readback, _ = call(marker, headers=auth)
@@ -363,13 +372,13 @@ def bootstrap(declare_broker=True):
             raise
     if declare_broker:
         wait("private broker topology", declare_topology)
-    return {"bucket_id":selected["id"], "warehouse":warehouse, "duckdb":version.strip(), "origin_marker_readback":True,
+    return {"bucket_id":selected["id"], "lakehouse":lakehouse, "duckdb":version.strip(), "origin_marker_readback":True,
             "dependencies":{name:package_version(name) for name in ("sage-data-client","pandas","pyarrow","pika","pywagglemsg","influxdb-client","PyJWT")}}
 
 
 def ready():
     status=wait("coordinator readiness", lambda: coord("/v1/status"))
-    if db("SELECT warehouse FROM config WHERE id=1")[0][0] != os.environ["WAREHOUSE"]: raise AssertionError("wrong coordinator warehouse")
+    if db("SELECT lakehouse FROM config WHERE id=1")[0][0] != os.environ["LAKEHOUSE"]: raise AssertionError("wrong coordinator lakehouse")
     return status
 
 
@@ -471,7 +480,7 @@ def late_corrected():
     checks=check_api("corrected",expected("final"))
     wait("all API grants released",lambda:views()=={pins["hot"]["id"],pins["cold"]["id"]})
     return {"status":status,"api":checks,"old_snapshot_unchanged":True,"inbox":inbox(),"broker":broker_queue(),
-            "warehouse_contract":warehouse_contract(status["metadata"]),"verification_journal":verification_journal(before_delete=True)}
+            "lakehouse_contract":lakehouse_contract(status["metadata"]),"verification_journal":verification_journal(before_delete=True)}
 
 
 def deletion_blocked():
@@ -497,15 +506,15 @@ def release_and_finish():
     release_read(pins["cold"])
     status=wait("readers/writers/late work drained",lambda: clean_status())
     return {"status":status,"api":checks,"job":archive_job(),"old_snapshot_still_readable":True,"broker":broker_queue(),
-            "warehouse_contract":warehouse_contract(status["metadata"]),"verification_journal":verification_journal()}
+            "lakehouse_contract":lakehouse_contract(status["metadata"]),"verification_journal":verification_journal()}
 
 
-def warehouse_contract(metadata):
-    root=os.environ["WAREHOUSE"]
-    if not metadata.startswith(root+"/sage/obs/metadata/"):
+def lakehouse_contract(metadata):
+    root=os.environ["LAKEHOUSE"]
+    if not metadata.startswith(root+table_path()+"/metadata/"):
         raise AssertionError("metadata outside this run")
     body=json_call(metadata,method="GET",headers={"Authorization":"Bearer "+token()})
-    if body["format-version"]!=3 or body["location"]!=root+"/sage/obs":
+    if body["format-version"]!=3 or body["location"]!=root+table_path():
         raise AssertionError("wrong Iceberg format/location")
     current=next(schema for schema in body["schemas"] if schema["schema-id"]==body["current-schema-id"])
     fields={field["name"]:field for field in current["fields"]}
@@ -517,10 +526,10 @@ def warehouse_contract(metadata):
         raise AssertionError("stored MAP metadata changed")
     props=body["properties"]
     for key,value in {"sage.layout":"plugin-vsn-time","sage.layout.version":"bounded-plugin-v1","sage.batch.order":"time","sage.row-group.rows":"262144"}.items():
-        if props.get(key)!=value: raise AssertionError("warehouse layout property changed: "+key)
+        if props.get(key)!=value: raise AssertionError("lakehouse layout property changed: "+key)
     spec=next(spec for spec in body["partition-specs"] if spec["spec-id"]==body["default-spec-id"])
     if not any(field["source-id"]==1 and field["transform"]=="day" for field in spec["fields"]):
-        raise AssertionError("warehouse is not day partitioned")
+        raise AssertionError("lakehouse is not day partitioned")
     save("published-metadata",body)
     return {"format":3,"time_type":fields["time"]["type"],"value_type":fields["value"]["type"],"meta_type":"map","layout":props["sage.layout.version"]}
 
@@ -567,11 +576,124 @@ def clean_status():
     return state if all(state[key]==0 for key in ("writers","readers","late_pending","jobs_pending","deletions_pending","jobs_failed","quarantined")) else None
 
 
+def prepare_backup_prefix():
+    """Provision only this run's sibling backup directory, with a separate token."""
+    import jwt
+    lakehouse = os.environ["LAKEHOUSE"]
+    parsed = urlsplit(lakehouse)
+    expected_path = "/sage/cold-test-" + os.environ["RUN_ID"] + "/lakehouse"
+    if parsed.path != expected_path:
+        raise AssertionError("backup fixture prefix mismatch")
+    path = parsed.path.removesuffix("/lakehouse") + "/backups"
+    now = int(time.time())
+    claims = dict(sub="sage-backup-fixture",aud="ANY",ver="scitoken:2.0",
+                  scope="read:"+path.removeprefix("/sage")+" write:"+path.removeprefix("/sage"),
+                  iss="https://sagecontinuum.org",iat=now-60,nbf=now-60,exp=now+900,jti=uuid.uuid4().hex)
+    bearer = jwt.encode(claims,Path(os.environ["PELICAN_KEY_PATH"]).read_bytes(),algorithm="ES256",headers={"kid":"3cfa"})
+    observed = {}
+    def observe(error):
+        observed["code"] = error.code
+    try:
+        call(parsed.scheme+"://"+parsed.netloc+path, method="MKCOL",
+             headers={"Authorization":"Bearer "+bearer}, error_observer=observe)
+    except RuntimeError:
+        if observed.get("code") != 405:
+            raise
+
+
+def online_backup_version(version):
+    prepare_backup_prefix()
+    view = acquire_read("backup-" + version)
+    owner = os.environ["RUN_ID"] + "/backup-probe"
+    permit = os.environ["RUN_ID"] + "/backup-drain-" + version
+    coord("/v1/writes/acquire", {"id":permit,"owner":owner,"days":[BOUNDS[1][:10]]}, "LOADER")
+    before_acks = broker_queue().get("message_stats",{}).get("ack",0)
+    started = coord("/v1/backups/create")
+    checks = 0
+    deadline = time.monotonic() + 900
+    released = False
+    try:
+        wait("backup admission closed while existing writer drains",
+             lambda: coord("/v1/backups/status").get("phase") == "draining_writers", timeout=60)
+        for route, payload in (
+            ("/v1/quarantine", {"id":permit+"/invalid","payload":"backup-gate-probe"}),
+            ("/v1/late", {"id":permit+"/late","records":[dict(time=START+194,name="live.temp",tags={"node":"n1"},kind="float",value="11.7")]}),
+        ):
+            observed = {}
+            def observe(error):
+                observed.update(code=error.code,retry_after=error.headers.get("Retry-After"))
+            try:
+                call("http://archiver:10001"+route, {"bucket":BUCKET,**payload},
+                     headers={"Content-Type":"application/json","Authorization":"Bearer "+os.environ["LOADER_TOKEN"]},
+                     error_observer=observe)
+            except RuntimeError:
+                if observed.get("code") != 503 or not observed.get("retry_after"):
+                    raise
+            else:
+                raise AssertionError("backup accepted a new write submission")
+        def rejected_writes():
+            raw,_=call("http://archiver:10001/metrics")
+            matches=re.findall(r"(?m)^hot_to_cold_backup_blocked_writes_total ([0-9.eE+-]+)$",raw.decode())
+            if len(matches)!=1:
+                raise AssertionError("backup admission metric unavailable")
+            return float(matches[0])
+        rejected_before_delivery=rejected_writes()
+        # Replay the identical hot point: broker delivery changes, observations do not.
+        publish([row for row in expected(version) if row["time"] >= MID],"backup-hot-retry-"+version)
+        wait("real loader rejected by maintenance admission",
+             lambda: rejected_writes()>rejected_before_delivery, timeout=60)
+        wait("blocked batch retained for broker replay",
+             lambda: broker_queue().get("messages_ready",0) > 0, timeout=60)
+        if broker_queue().get("message_stats",{}).get("ack",0) != before_acks:
+            raise AssertionError("blocked delivery was acknowledged")
+        for _ in range(3):
+            check_api("backup-"+version,expected(version))
+            coord("/v1/reads/renew",{"id":view["id"],"owner":os.environ["RUN_ID"]+"/probe"},"READER")
+            coord("/v1/writes/renew",{"id":permit,"owner":owner},"LOADER")
+            checks += 1
+        coord("/v1/writes/release",{"id":permit,"owner":owner},"LOADER")
+        released = True
+        while time.monotonic() < deadline:
+            check_api("backup-"+version,expected(version))
+            coord("/v1/reads/renew",{"id":view["id"],"owner":os.environ["RUN_ID"]+"/probe"},"READER")
+            checks += 1
+            status = coord("/v1/backups/status")
+            if status.get("id") != started["id"]:
+                raise AssertionError("backup operation changed")
+            if status.get("phase") == "failed":
+                raise AssertionError("backup failed: " + str(status.get("error")))
+            if status.get("phase") == "complete":
+                wait("maintenance-blocked delivery replayed",lambda:drained(before_acks+1))
+                equal(source_rows(),expected("seed"))
+                return {"backup":status,"api_cycles":checks,"version":version,
+                        "blocked_batch_unacknowledged_then_replayed":True,"late_and_quarantine_blocked":True}
+            time.sleep(0.1)
+        raise TimeoutError("backup did not complete")
+    finally:
+        if not released:
+            coord("/v1/writes/release",{"id":permit,"owner":owner},"LOADER")
+        release_read(view)
+
+
+def online_backup_old():
+    return online_backup_version("fenced")
+
+
+def online_backup():
+    return online_backup_version("final")
+
+
+def backup_restored():
+    return {"status":coord("/v1/status"),"api":check_api("backup-restored",expected("final")),
+            "hot_rows":source_rows(),"post_deletion_restore":True}
+
+
 def main():
     stage=sys.argv[1]
     stages={name.replace("_","-"):value for name,value in globals().copy().items() if name in (
         "bootstrap","ready","seed","fenced","recover_and_release","archive_and_pin","fenced_late_published",
-        "publish_redelivery","late_corrected","deletion_blocked","release_and_finish")}
+        "publish_redelivery","late_corrected","deletion_blocked","release_and_finish",
+        "online_backup_old","online_backup","backup_restored")}
     try:
         result=stages[stage]()
         save(stage,{"passed":True,**result})

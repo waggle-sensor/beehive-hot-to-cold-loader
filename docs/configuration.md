@@ -10,13 +10,19 @@ Run `beehive-hot-to-cold-loader --help` for the executable's flag reference. Fla
 | --- | --- | --- |
 | `--addr` | `HOT_TO_COLD_ADDR` | `:10001` |
 | `--state` | `HOT_TO_COLD_STATE` | `./state`; private, persistent, outside `/node-data` |
-| `--warehouse` | `HOT_TO_COLD_WAREHOUSE` | Required; `https://host/sage/cold-storage-archive-<unique>/warehouse` |
+| `--lakehouse` | `COLD_LAKEHOUSE` | Required; `https://host/sage/cold/lakehouse` |
+| `--namespace` | `COLD_NAMESPACE` | `sage`; Iceberg namespace |
+| `--table-name` | `COLD_TABLE_NAME` | `observations`; Iceberg table name |
 | `--archive-start` | `HOT_TO_COLD_START` | Required; first UTC day whose coverage is managed |
 | `--archive-before` | — | Unset; optional exclusive day bounding new archive scheduling |
-| `--bootstrap-warehouse` | — | Unset; audited read-only source, paired with `--bootstrap-before` |
+| `--bootstrap-lakehouse` | — | Unset; audited read-only source, paired with `--bootstrap-before` |
 | `--bootstrap-before` | — | Unset; exclusive end of audited source coverage, after archive start |
 
-Bucket, warehouse, and coverage start are bound to the control journal. Source bucket ID, organization, and bootstrap settings are also durably bound during archival startup. Do not repoint existing state at another source or warehouse. A new catalog refuses to silently adopt an occupied remote table root.
+Set the same `COLD_NAMESPACE` and `COLD_TABLE_NAME` on the loader and `beehive-data-api`. For example, `telemetry` and `readings` select `telemetry.readings` at `<root>/telemetry/readings/`. These settings change both the catalog identifier and storage location; no suffix is appended to the table name. Identifiers must start with an ASCII letter or underscore and contain only ASCII letters, digits, or underscores. Empty values, slashes, dots, whitespace, and traversal strings are rejected at startup. Bootstrap sources use the same configured namespace and table name.
+
+Namespace and table name are durably bound even in coordinate-only mode. Changing either on an existing journal is rejected; published metadata must also belong to the configured table. This is configuration for a fresh table, not an automatic rename or migration of existing data. To keep reading an existing table, configure its actual namespace and name explicitly.
+
+Bucket, lakehouse, and coverage start are bound to the control journal. Source bucket ID, organization, and bootstrap settings are also durably bound during archival startup. Do not repoint existing state at another source or lakehouse. A new catalog refuses to silently adopt an occupied remote table root.
 
 ## Source and native tools
 
@@ -38,17 +44,17 @@ Normalization/base work and fresh exact comparisons use sixteen threads. The bui
 
 ## Scheduling and deletion gates
 
-| Flag | Default | Meaning |
-| --- | --- | --- |
-| `--hot-retention` | `720h` | Positive minimum hot age; complete UTC days only |
-| `--interval` | `1h` | Positive new archival scheduling interval |
-| `--late-interval` | `5m` | Positive late correction scheduling interval |
-| `--coordinate-only` | `false` | Serve coordination without starting archival work or deletion |
-| `--writers-coordinated` | `false` | Required to archive; attests all selected-bucket writers participate |
-| `--delete-enabled` | `false` | Permit guarded deletion after routing and proofs |
-| `--readers-coordinated` | `false` | Required with deletion; attests all readers use managed views |
-| `--write-lease-duration` | `30m` | Initial/renewed writer lease; positive and at most `24h`; fixed one-minute grace after expiry |
-| `--read-lease-duration` | `30m` | Initial/renewed read lease; positive and at most `24h` |
+| Flag | Environment | Default | Meaning |
+| --- | --- | --- | --- |
+| `--hot-retention` | `HOT_TO_COLD_HOT_RETENTION` | `720h` | Positive minimum hot age; complete UTC days only |
+| `--interval` | `HOT_TO_COLD_INTERVAL` | `1h` | Positive new archival scheduling interval |
+| `--late-interval` | `HOT_TO_COLD_LATE_INTERVAL` | `5m` | Positive late correction scheduling interval |
+| `--coordinate-only` | `HOT_TO_COLD_COORDINATE_ONLY` | `false` | Serve coordination without starting archival work or deletion |
+| `--writers-coordinated` | `HOT_TO_COLD_WRITERS_COORDINATED` | `false` | Required to archive; attests all selected-bucket writers participate |
+| `--delete-enabled` | `HOT_TO_COLD_DELETE_ENABLED` | `false` | Permit guarded deletion after routing and proofs |
+| `--readers-coordinated` | `HOT_TO_COLD_READERS_COORDINATED` | `false` | Required with deletion; attests all readers use managed views |
+| `--write-lease-duration` | `HOT_TO_COLD_WRITE_LEASE_DURATION` | `30m` | Initial/renewed writer lease; positive and at most `24h`; fixed one-minute grace after expiry |
+| `--read-lease-duration` | `HOT_TO_COLD_READ_LEASE_DURATION` | `30m` | Initial/renewed read lease; positive and at most `24h` |
 
 These switches are operator attestations, not discovery of bypass credentials. `--coordinate-only` cannot be combined with deletion; it does not require the engine/bucket ID or `INFLUX_TOKEN`, and preserves existing durable fences. Retention changes govern new jobs; they do not move archived data back to hot. `--archive-before` does not suppress existing recovery, late work, or deletions.
 
@@ -75,6 +81,17 @@ The three coordination secrets must each be at least 32 bytes and differ. Inject
 
 Metrics do not require `--profile-steps`. Other build, normalization, and operation reports provide separate evidence. Retention only removes allowlisted performance profiles from completed jobs, preserving recovery/verification records and unknown legacy completion times. See [metrics](metrics.md).
 
+## Online state backups
+
+| Flag | Environment | Default / requirement |
+| --- | --- | --- |
+| — | `HOT_TO_COLD_BACKUP_SCRATCH` | Unset disables backup creation; separate writable mount outside the primary state tree |
+| — | `HOT_TO_COLD_BACKUP_URL` | Required when scratch is set; private sibling `https://host/sage/cold/backups/hot-to-cold-loader` |
+| — | `HOT_TO_COLD_BACKUP_KEEP` | `30`; positive completed backups retained per source/table identity |
+| — | `HOT_TO_COLD_BACKUP_IMAGE` | Unset; qualified deployed image reference/digest recorded in the backup manifest |
+
+Keep `HOT_TO_COLD_BACKUP_IMAGE` synchronized with the workload image. Only the admin token can call backup routes. See [backup and recovery](backup-recovery.md) for admission behavior, deadlines, private-prefix requirements, retention and the offline restore commands.
+
 ## Configure sibling services
 
 These are settings in the sibling applications, not environment variables read by this coordinator:
@@ -82,6 +99,6 @@ These are settings in the sibling applications, not environment variables read b
 | Application | Settings |
 | --- | --- |
 | `beehive-influxdb-loader` | `HOT_TO_COLD_LOADER_URL`, `HOT_TO_COLD_LOADER_LOADER_TOKEN`, `HOT_TO_COLD_LOADER_LOADER_OWNER` |
-| `beehive-data-api` | `COLD_FRONTIER=dynamic`, `HOT_TO_COLD_LOADER_URL`, `HOT_TO_COLD_LOADER_READER_TOKEN`, `HOT_TO_COLD_LOADER_READER_OWNER`, `COLD_WAREHOUSE` |
+| `beehive-data-api` | `COLD_FRONTIER=dynamic`, `HOT_TO_COLD_LOADER_URL`, `HOT_TO_COLD_LOADER_READER_TOKEN`, `HOT_TO_COLD_LOADER_READER_OWNER`, `COLD_LAKEHOUSE` |
 
-The Influx loader's `HOT_TO_COLD_LOADER_LOADER_TOKEN` must equal this service's `HOT_TO_COLD_LOADER_TOKEN`. The data API's `HOT_TO_COLD_LOADER_READER_TOKEN` must equal this service's `HOT_TO_COLD_READER_TOKEN`. Use distinct process owners. The API's warehouse must match the managed warehouse; set `COLD_BORDER` in dynamic mode. An uncoordinated loader can still write Influx when its optional coordination settings are unset, so migrate all writers and restrict bypass access before asserting `--writers-coordinated`.
+The Influx loader's `HOT_TO_COLD_LOADER_LOADER_TOKEN` must equal this service's `HOT_TO_COLD_LOADER_TOKEN`. The data API's `HOT_TO_COLD_LOADER_READER_TOKEN` must equal this service's `HOT_TO_COLD_READER_TOKEN`. Use distinct process owners. The API's lakehouse must match the managed lakehouse; set `COLD_BORDER` in dynamic mode. An uncoordinated loader can still write Influx when its optional coordination settings are unset, so migrate all writers and restrict bypass access before asserting `--writers-coordinated`.

@@ -8,23 +8,23 @@ Run from the workspace root on a host with Docker Compose:
 python3 beehive-hot-to-cold-loader/testing/live/run.py
 ```
 
-The issuer key defaults to `honeyhouse-config/applications/waggle-access/pelican/issuer-key.pem`. The probe image uses the architecture-matching DuckDB 2.0.x Linux CLI at `beehive-hot-to-cold-loader/bin/duckdb`. Override either with `--pelican-key` or `--duckdb`. The archiver image copies DuckDB 2.0.0 and InfluxDB 2.7.7 `influxd` from their official images. Docker builds need the base images, Go and Python dependencies, and DuckDB extensions. The host needs Python 3.9 or newer. The fixture loader and probe run in Python 3.12 containers.
+The issuer key defaults to `honeyhouse-config/applications/waggle-access/pelican/issuer-key.pem`. The probe image uses the architecture-matching DuckDB 2.0.x Linux CLI at `beehive-hot-to-cold-loader/bin/duckdb`. Override either with `--pelican-key` or `--duckdb`. Pass `--archiver-image`, `--api-image`, and `--loader-image` together, each as `name@sha256:<64 hex>`, to run those published linux/amd64 images unchanged. The probe is still built for the harness. The default command builds the archiver, API, and loader from the workspace. The archiver image copies DuckDB 2.0.0 and InfluxDB 2.7.7 `influxd` from their official images. Docker builds need the base images, Go and Python dependencies, and DuckDB extensions. The host needs Python 3.9 or newer. The fixture loader and probe run in Python 3.12 containers.
 
 The script prints its private run directory. Read `run.json` and `reports/release-and-finish.json` for the result. Success is `passed: true`, phase `complete`, and a successful final probe. Fixture services stop afterward, including after a failure. A failure keeps state, reports, and containers for inspection. `services_stopped` records teardown. A teardown error fails the run.
 
 ## Isolation and storage
 
-Each invocation allocates a UUID, a new Compose project, a new local state directory, and a new managed warehouse:
+Each invocation allocates a UUID, a new Compose project, a new local state directory, and a new managed lakehouse:
 
 ```text
-https://nrdstor.nationalresearchplatform.org:8443/sage/cold-storage-archive-live-<uuid>/warehouse
+https://nrdstor.nationalresearchplatform.org:8443/sage/cold-test-<uuid>/lakehouse
 ```
 
-`--origin https://host[:port]/sage` changes the origin and keeps the generated prefix. The script creates a new warehouse and Compose project on every invocation. Host ports stay unpublished. The stack attaches no existing volumes or brokers. The `waggle` bucket exists only inside this run's Influx container. The observations are synthetic March 1 and March 2 points. The default 30-day hot retention stays in force, and `--archive-before=2025-03-02` limits the archive to March 1.
+`--origin https://host[:port]/sage` changes the origin and keeps the generated prefix. The script creates a new lakehouse and Compose project on every invocation. Host ports stay unpublished. The stack attaches no existing volumes or brokers. The `waggle` bucket exists only inside this run's Influx container. The observations are synthetic March 1 and March 2 points. The default 30-day hot retention stays in force, and `--archive-before=2025-03-02` limits the archive to March 1.
 
 The signing key is mounted read-only. Tokens are scoped to this run's prefix. SQL reads use read-only tokens, and TLS certificate verification stays on. Source and build snapshots exclude the key, `.git`, state, and caches. Generated service tokens live in `private-config.json`. Share `run.json` and the functional reports. Source-tree hashes in `run.json` identify the workspace code frozen into each build.
 
-Archival deletion is enabled only inside this stack, and only after the remote and client checks pass. An old hot read grant blocks deletion. Releasing that grant lets the archiver reverify and delete the fixture's March 1 rows. Production code, deployments, and deletion defaults stay unchanged. The script leaves remote objects in place and does not touch `/node-data` or an existing demo warehouse. Keep the local state and catalog with their prefix.
+Archival deletion is enabled only inside this stack, and only after the remote and client checks pass. An old hot read grant blocks deletion. Releasing that grant lets the archiver reverify and delete the fixture's March 1 rows. Production code, deployments, and deletion defaults stay unchanged. The script leaves remote objects in place and does not touch `/node-data` or an existing demo lakehouse. Keep the local state and catalog with their prefix.
 
 Container memory caps total about 10.5 GiB, including the one-shot probe. Leave room for image builds and other workloads. The dataset ends at five logical observations, so this run does not set a full-day memory or disk bound.
 
@@ -61,7 +61,7 @@ Stop only the stack recorded by an interrupted run:
 python3 beehive-hot-to-cold-loader/testing/live/run.py --stop /absolute/path/to/state/live-<uuid>
 ```
 
-After a failed live run, inspect the stage report and coordinator journal, then start a fresh invocation. Resume is refused once execution has begun, so a new local catalog cannot adopt the same remote warehouse. A prepared run whose Docker preflight failed before any action can still be executed with `--prepared` on a host that has Docker.
+After a failed live run, inspect the stage report and coordinator journal, then start a fresh invocation. Resume is refused once execution has begun, so a new local catalog cannot adopt the same remote lakehouse. A prepared run whose Docker preflight failed before any action can still be executed with `--prepared` on a host that has Docker.
 
 ## Offline verification
 
@@ -76,3 +76,24 @@ The two decoder tests need Arrow and Pandas. The other tests use the standard li
 Fresh runs fix the native thread policy. Normalization uses sixteen threads, merge fan-in sixteen, and one merge worker. Build materialization and per-file comparison use `--duckdb-build-threads=16`. Build batch sort and copy use `--duckdb-build-sort-threads=2`. Fresh reconciliation, commit, and pre-delete comparisons use sixteen threads on a private session copy. `--duckdb-threads` is not a service flag. Canonical shard reuse is required, and the first comparison partition count is fixed. The same native memory setting applies throughout.
 
 `run.json` records `execution_policy`: those thread counts, canonical reuse, fixed partitioning, and the `tag_dictionary`, `raw_tag_dictionary`, and `local_dictionary` canonicalization policies. `export-dedup.json` records the normalization policy the job actually used, and the live probe checks it before fixture deletion. `expected-profile.json` and `packing-profile.json` record the threads the build used. An existing prepared directory keeps its frozen commands. Prepare a fresh run to validate this policy. Preparation does not modify a deployed service.
+
+## Configurable table identity
+
+New runs capture `COLD_NAMESPACE` and `COLD_TABLE_NAME` from the preparing
+shell, defaulting to `sage` and `observations`, and forward them to the archiver,
+API, and probe. All three derive the table path from those saved settings.
+Set them before preparation to exercise a custom table in an isolated test
+root; restarting a prepared run does not change its persisted identity.
+
+## Online backup and recovery drill
+
+Pass `--backup` for the new online backup/restore qualification. It adds a
+separate scratch mount, two verified private sibling-prefix backups around
+late corrections, repeated API/client reads and lease renewals, rejection of
+an older restore after publication advances, and restoration of the current
+backup after fixture hot deletion. Original local state is renamed and retained
+for diagnosis, never deleted. The same isolated `cold-test-<uuid>` ownership
+checks apply. The final restored coordinator runs with deletion disabled.
+See [the backup procedure](../../docs/backup-recovery.md) for result reports and
+production limitations. This opt-in gate requires images containing the new
+backup commands; a historical pinned image is not a pass for this feature.

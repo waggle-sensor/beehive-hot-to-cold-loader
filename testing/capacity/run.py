@@ -19,23 +19,21 @@ live=importlib.util.module_from_spec(spec);spec.loader.exec_module(live)
 sys.path.insert(0,str(HERE))
 from monitor import Monitor
 
-SOURCE="https://nrdstor.nationalresearchplatform.org:8443/sage/cold-storage-demo-v3-bounded-full-1793018629285065000/warehouse"
-
 
 def source_url(text):
     from urllib.parse import urlsplit
     import re
     u=urlsplit(text)
     if (u.scheme!="https" or not u.netloc or u.username or u.password or u.query or u.fragment
-        or not re.fullmatch(r"/sage/cold-storage-[A-Za-z0-9_-]+/warehouse",u.path)):
-        raise ValueError("read-only source must be an isolated cold-storage warehouse HTTPS URL")
+        or not re.fullmatch(r"/sage/(?:cold|cold-test-[A-Za-z0-9_-]+)/lakehouse",u.path)):
+        raise ValueError("read-only source must be an HTTPS /sage/cold/lakehouse or /sage/cold-test-<unique>/lakehouse URL")
     return text
 
 
 def prepare(args):
     day=date.fromisoformat(args.day)
     if day.isoformat()!=args.day:raise ValueError("canonical UTC day required")
-    source_url(args.source_warehouse)
+    source_url(args.source_lakehouse)
     root=live.prepare(args)
     for name in ("full_probe.py","encoding.py"):
         shutil.copy2(HERE/name,root/"probe-build"/name)
@@ -43,25 +41,25 @@ def prepare(args):
     docker.write_text(docker.read_text().replace('ENTRYPOINT ["python", "-u", "/live/probe.py"]',
         'COPY full_probe.py encoding.py /live/\nENTRYPOINT ["python", "-u", "/live/full_probe.py"]'))
     config=json.loads((root/"private-config.json").read_text())
-    config.update(SOURCE_WAREHOUSE=args.source_warehouse,SOURCE_DAY=args.day,HOT_TO_COLD_BEFORE=(day+timedelta(days=1)).isoformat(),
+    config.update(SOURCE_LAKEHOUSE=args.source_lakehouse,SOURCE_DAY=args.day,HOT_TO_COLD_BEFORE=(day+timedelta(days=1)).isoformat(),
         NATIVE_MEMORY=args.duckdb_memory,DAY_TIMEOUT=str(args.timeout),MAX_PROBE_ROWS="5000",MIN_FREE_GIB=str(args.min_free_gib),MIN_AVAILABLE_GIB=str(args.min_available_gib),
-        EXPECTED_ROWS=str(args.expected_rows if args.expected_rows is not None else (140578674 if args.source_warehouse==SOURCE and args.day=='2025-03-01' else 0)))
-    if config["SOURCE_WAREHOUSE"]==config["WAREHOUSE"]:raise ValueError("source must differ from destination")
+        EXPECTED_ROWS=str(args.expected_rows if args.expected_rows is not None else 0))
+    if config["SOURCE_LAKEHOUSE"]==config["LAKEHOUSE"]:raise ValueError("source must differ from destination")
     live.save(root/"private-config.json",config)
-    command=["--state=/state","--warehouse=${WAREHOUSE}","--archive-start=${SOURCE_DAY}","--archive-before=${HOT_TO_COLD_BEFORE}",
+    command=["--state=/state","--lakehouse=${LAKEHOUSE}","--archive-start=${SOURCE_DAY}","--archive-before=${HOT_TO_COLD_BEFORE}",
         "--influx-url=http://influx:8086","--bucket=waggle","--org=waggle","--bucket-id=${BUCKET_ID:-not-yet-discovered}",
         "--engine-path=/influx/engine","--interval=1s","--late-interval=1s","--duckdb-memory=${NATIVE_MEMORY}",
         "--duckdb-build-threads=16","--duckdb-build-sort-threads=2",
         "--writers-coordinated=true","--readers-coordinated=true","--coordinate-only=${COORDINATE_ONLY:-true}",
         "--delete-enabled=${DELETE_ENABLED:-false}","--profile-steps=true"]
-    extra={key:"${"+key+"}" for key in ("SOURCE_WAREHOUSE","SOURCE_DAY","NATIVE_MEMORY","DAY_TIMEOUT","MAX_PROBE_ROWS","MIN_FREE_GIB","MIN_AVAILABLE_GIB","EXPECTED_ROWS")}
+    extra={key:"${"+key+"}" for key in ("SOURCE_LAKEHOUSE","SOURCE_DAY","NATIVE_MEMORY","DAY_TIMEOUT","MAX_PROBE_ROWS","MIN_FREE_GIB","MIN_AVAILABLE_GIB","EXPECTED_ROWS")}
     override={"services":{
         "influx":{"mem_limit":args.influx_memory},
         "archiver":{"command":command,"mem_limit":args.archiver_memory,"volumes":["${LIVE_ROOT}/reports:/bench:ro"]},
         "probe":{"environment":extra,"mem_limit":args.probe_memory}}}
     live.save(root/"compose.capacity.json",override)
     manifest=json.loads((root/"run.json").read_text())
-    manifest.update(execution_policy={"normalization_threads":16,"normalization_merge_fan_in":16,"normalization_merge_concurrency":1,"comparison_threads":16,"build_threads":16,"build_sort_threads":2,"canonical_reuse":True,"build_canonicalization":"tag_dictionary","reconciliation_canonicalization":"raw_tag_dictionary","verification_canonicalization":"local_dictionary","partitioning":"fixed"},kind="string-roundtrip" if args.strings_only else "full-day",source_warehouse=args.source_warehouse,source_day=args.day,
+    manifest.update(execution_policy={"normalization_threads":16,"normalization_merge_fan_in":16,"normalization_merge_concurrency":1,"comparison_threads":16,"build_threads":16,"build_sort_threads":2,"canonical_reuse":True,"build_canonicalization":"tag_dictionary","reconciliation_canonicalization":"raw_tag_dictionary","verification_canonicalization":"local_dictionary","partitioning":"fixed"},kind="string-roundtrip" if args.strings_only else "full-day",source_lakehouse=args.source_lakehouse,source_day=args.day,
         limits={"influx":args.influx_memory,"archiver":args.archiver_memory,"probe":args.probe_memory,"duckdb":args.duckdb_memory},
         measurement="small string HTTP round-trip only; no capacity result" if args.strings_only else "real-day archival, excluding source extraction/seeding and bounded API probes")
     manifest["source_sha256"]["probe-build"]=live.tree_hash(root/"probe-build")
@@ -73,8 +71,8 @@ class Run(live.Run):
     def __init__(self,root):
         super().__init__(root)
         if self.manifest.get("kind") not in ("full-day","string-roundtrip"):raise ValueError("not a capacity/string-check preparation")
-        source_url(self.config["SOURCE_WAREHOUSE"])
-        if self.config["SOURCE_WAREHOUSE"]==self.config["WAREHOUSE"]:raise ValueError("source/destination overlap")
+        source_url(self.config["SOURCE_LAKEHOUSE"])
+        if self.config["SOURCE_LAKEHOUSE"]==self.config["LAKEHOUSE"]:raise ValueError("source/destination overlap")
         self.command.extend(["--file",str(self.root/"compose.capacity.json")])
 
     def probe(self,stage):
@@ -174,7 +172,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--prepare-only",action="store_true");p.add_argument("--prepared",type=Path);p.add_argument("--stop",type=Path)
     p.add_argument("--strings-only",action="store_true",help="small isolated Influx string round-trip; no historical scan or archival")
-    p.add_argument("--run-dir",type=Path);p.add_argument("--day",default="2025-03-01");p.add_argument("--source-warehouse",default=SOURCE)
+    p.add_argument("--run-dir",type=Path);p.add_argument("--day",default="2025-03-01");p.add_argument("--source-lakehouse",help="audited read-only source URL ending in /lakehouse; required for preparation")
     p.add_argument("--origin",default="https://nrdstor.nationalresearchplatform.org:8443/sage")
     p.add_argument("--pelican-key",type=Path,default=live.WORKSPACE/"honeyhouse-config/applications/waggle-access/pelican/issuer-key.pem")
     p.add_argument("--duckdb",type=Path,default=live.ARCHIVER/"bin/duckdb")
@@ -182,13 +180,14 @@ def main():
     p.add_argument("--influx-memory",default="10g");p.add_argument("--probe-memory",default="4g")
     p.add_argument("--min-free-gib",type=int,default=32);p.add_argument("--min-available-gib",type=int,default=10)
     p.add_argument("--timeout",type=int,default=21600)
-    p.add_argument("--expected-rows",type=int,help="audited row count; default March 1 source requires 140578674")
+    p.add_argument("--expected-rows",type=int,help="optional audited source-day row count")
     args=p.parse_args()
     if args.expected_rows is not None and args.expected_rows<1:p.error("positive expected row count required")
     if min(args.min_free_gib,args.min_available_gib,args.timeout)<1:p.error("positive resource floors/deadline required")
     if args.prepared and (args.prepare_only or args.run_dir or args.strings_only):p.error("prepared run cannot be combined with preparation flags; its saved kind determines execution scope")
     if args.stop:
         value=Run(args.stop);value.compose("stop");value.stop_probes();return
+    if not args.prepared and not args.source_lakehouse:p.error("--source-lakehouse is required when preparing a new run")
     root=args.prepared or prepare(args)
     print("Private archival validation run:",root,flush=True)
     if not args.prepare_only:Run(root).execute()

@@ -11,6 +11,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -151,7 +152,7 @@ func pelicanFixture(t *testing.T, live bool) (*Pelican, string) {
 		t.Cleanup(server.Close)
 		base = server.URL
 	}
-	p, e := NewPelican(base+"/sage/cold-storage-archive-test/warehouse", keyPath, root)
+	p, e := NewPelican(base+"/sage/cold-test-test/lakehouse", keyPath, root, TableIdentity{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -177,7 +178,7 @@ func TestCatalogV3SchemaAndRemoteMetadata(t *testing.T) {
 	if e = c.Init(ctx); e != nil {
 		t.Fatal(e)
 	}
-	tbl, e := c.Catalog.LoadTable(ctx, ident)
+	tbl, e := c.Catalog.LoadTable(ctx, c.Identifier())
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -206,14 +207,14 @@ func TestCatalogV3SchemaAndRemoteMetadata(t *testing.T) {
 
 func TestPelicanScopeAndStreamingDigest(t *testing.T) {
 	p, root := mockPelican(t)
-	for _, name := range []string{"https://other.test/sage/cold-storage-archive-test/warehouse/sage/obs/x", p.Base.String() + "/sage/obs/../../node-data/x", p.Base.String() + "/sage/obs/%2e%2e/x"} {
+	for _, name := range []string{"https://other.test/sage/cold-test-test/lakehouse/sage/observations/x", p.Base.String() + "/sage/observations/../../node-data/x", p.Base.String() + "/sage/observations/%2e%2e/x"} {
 		if _, e := p.validate(name); e == nil {
 			t.Fatal(name)
 		}
 	}
 	local := filepath.Join(root, "file")
 	os.WriteFile(local, bytes.Repeat([]byte("test"), 1024), 0600)
-	remote := p.Base.String() + "/sage/obs/data/test.parquet"
+	remote := p.Base.String() + "/sage/observations/data/test.parquet"
 	if e := p.Upload(context.Background(), local, remote); e != nil {
 		t.Fatal(e)
 	}
@@ -235,6 +236,115 @@ func TestPelicanScopeAndStreamingDigest(t *testing.T) {
 	}
 }
 
+func TestPelicanLakehouseRootsAndTokenScope(t *testing.T) {
+	_, root := mockPelican(t)
+	key := filepath.Join(root, "key.pem")
+	for _, location := range []string{
+		"https://pelican.test/sage/cold/lakehouse",
+		"https://pelican.test/sage/cold-test-test/lakehouse",
+	} {
+		t.Run(location, func(t *testing.T) {
+			p, err := NewPelican(location, key, root, TableIdentity{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if p.Base.String() != location {
+				t.Fatal("configured URL changed", p.Base)
+			}
+			wantPrefix := strings.TrimPrefix(p.Base.Path, "/sage")
+			for _, write := range []bool{false, true} {
+				token, err := p.Token(write)
+				if err != nil {
+					t.Fatal(err)
+				}
+				payload, err := base64.RawURLEncoding.DecodeString(strings.Split(token, ".")[1])
+				if err != nil {
+					t.Fatal(err)
+				}
+				var claims struct {
+					Scope string `json:"scope"`
+				}
+				if err = json.Unmarshal(payload, &claims); err != nil {
+					t.Fatal(err)
+				}
+				wantScope := "read:" + wantPrefix
+				if write {
+					wantScope += " write:" + wantPrefix
+				}
+				if claims.Scope != wantScope {
+					t.Fatal("token escaped lakehouse root", claims.Scope, wantScope)
+				}
+			}
+			if _, err = p.validate(location + "/sage/observations/data/file.parquet"); err != nil {
+				t.Fatal(err)
+			}
+			for _, outside := range []string{
+				location + "-other/sage/observations/data/file.parquet",
+				"https://pelican.test/sage/cold/backups/sage/observations/file",
+				"https://pelican.test/sage/node-data/file",
+			} {
+				if _, err = p.validate(outside); err == nil {
+					t.Fatal("accepted object outside lakehouse", outside)
+				}
+			}
+		})
+	}
+	for _, location := range []string{
+		"https://pelican.test/sage/cold/warehouse",
+		"https://pelican.test/sage/cold-test-/lakehouse",
+		"https://pelican.test/sage/cold-storage-archive-test/lakehouse",
+		"https://pelican.test/sage/cold-storage-demo/lakehouse",
+		"https://pelican.test/sage/cold-test-test/warehouse",
+		"https://pelican.test/sage/node-data/lakehouse",
+		"https://pelican.test/sage/cold/lakehouse/",
+		"https://pelican.test/sage/cold/lakehouse/../lakehouse",
+		"https://pelican.test/sage/cold/%6cakehouse",
+		"https://pelican.test/sage/cold/lakehouse?token=x",
+		"https://pelican.test/sage/cold/lakehouse?",
+		"https://pelican.test/sage/cold/lakehouse#fragment",
+		"https://user@pelican.test/sage/cold/lakehouse",
+		"http://pelican.test/sage/cold/lakehouse",
+		"https://pelican.test/sage/cold",
+	} {
+		if _, err := NewPelican(location, key, root, TableIdentity{}); err == nil {
+			t.Fatal("accepted invalid writable lakehouse", location)
+		}
+	}
+}
+
+func TestBootstrapReaderRequiresLakehouse(t *testing.T) {
+	_, root := mockPelican(t)
+	for _, location := range []string{
+		"https://pelican.test/sage/cold/lakehouse",
+		"https://pelican.test/sage/cold-test-demo/lakehouse",
+		"https://pelican.test/sage/cold-test-test/lakehouse",
+	} {
+		reader, err := NewPelicanReader(location, filepath.Join(root, "key.pem"), root, TableIdentity{})
+		if err != nil {
+			t.Fatal(location, err)
+		}
+		if _, err = reader.Token(false); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = reader.Token(true); err == nil {
+			t.Fatal("read-only bootstrap minted a write token", location)
+		}
+	}
+	for _, location := range []string{
+		"https://pelican.test/sage/cold/warehouse",
+		"https://pelican.test/sage/cold-test-/lakehouse",
+		"https://pelican.test/sage/cold-storage-archive-test/lakehouse",
+		"https://pelican.test/sage/cold-storage-demo/lakehouse",
+		"https://pelican.test/sage/cold-test-test/warehouse",
+		"https://pelican.test/sage/cold-storage-demo/lakehouse",
+	} {
+		if _, err := NewPelicanReader(location, filepath.Join(root, "key.pem"), root, TableIdentity{}); err == nil {
+			t.Fatal("bootstrap accepted a non-lakehouse root", location)
+		}
+	}
+
+}
+
 // roundTripFunc is a round trip function.
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
@@ -244,12 +354,12 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { retu
 // TestBootstrapIOCannotWrite tests that a bootstrap IO cannot write.
 func TestBootstrapIOCannotWrite(t *testing.T) {
 	p, root := mockPelican(t)
-	reader, e := NewPelicanReader(p.Base.String(), filepath.Join(root, "key.pem"), root)
+	reader, e := NewPelicanReader(p.Base.String(), filepath.Join(root, "key.pem"), root, TableIdentity{})
 	if e != nil {
 		t.Fatal(e)
 	}
 	reader.Client = p.Client
-	if e = reader.WriteFile(p.Base.String()+"/sage/obs/source", []byte("no")); e == nil {
+	if e = reader.WriteFile(p.Base.String()+"/sage/observations/source", []byte("no")); e == nil {
 		t.Fatal("bootstrap source writable")
 	}
 }

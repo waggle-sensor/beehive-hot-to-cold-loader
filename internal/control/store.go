@@ -3,6 +3,7 @@
 package control
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -12,11 +13,60 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 )
+
+// ErrAdmissionClosed is returned when backup capture temporarily blocks new
+// write grants and late/quarantine submissions. Existing renewals still work.
+var ErrAdmissionClosed = errors.New("write admission temporarily closed")
+
+// CloseAdmission blocks new write/late/quarantine submissions for backup capture.
+// Callers still holding an active permit may renew or release it.
+func (s *Store) CloseAdmission() {
+	s.admissionMu.Lock()
+	s.admissionClosed = true
+	s.admissionMu.Unlock()
+}
+
+// OpenAdmission restores write admission after capture finishes or fails.
+func (s *Store) OpenAdmission() {
+	s.admissionMu.Lock()
+	s.admissionClosed = false
+	s.admissionMu.Unlock()
+}
+
+// AdmissionClosed reports whether backup capture is blocking new write submissions.
+func (s *Store) AdmissionClosed() bool {
+	s.admissionMu.RLock()
+	defer s.admissionMu.RUnlock()
+	return s.admissionClosed
+}
+
+// DrainWrites waits until no active writer permits remain inside expiry+grace.
+// Expiry follows the normal lease policy; it does not cancel remote writer IO.
+func (s *Store) DrainWrites(ctx context.Context) error {
+	tick := time.NewTicker(20 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		var n int
+		if err := s.DB.QueryRowContext(ctx, "SELECT count(*) FROM permits WHERE state='active' AND expires_at > ?", s.now().Add(-WriteExpiryGrace).UnixNano()).Scan(&n); err != nil {
+			return err
+		}
+		if n == 0 {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-tick.C:
+		}
+	}
+}
 
 // ErrExportNeedsReconcile requests a safe rewind while the day stays fenced.
 var ErrExportNeedsReconcile = errors.New("export must be normalized and reconciled before building")
@@ -96,7 +146,7 @@ const ReadExpiryGrace = time.Minute
 type View struct {
 	ExpiresAt     string `json:"expires_at"`
 	ID            string `json:"id"`             // the ID of the view
-	Warehouse     string `json:"warehouse"`      // the warehouse of the view
+	Lakehouse     string `json:"lakehouse"`      // the lakehouse of the view
 	Metadata      string `json:"metadata"`       // the metadata of the view
 	Frontier      string `json:"frontier"`       // the frontier of the view
 	CoverageStart string `json:"coverage_start"` // the coverage start of the view
@@ -124,14 +174,17 @@ type Job struct {
 // Store is the SQLite journal. Read deadlines persist across restarts.
 type Store struct {
 	DB                 *sql.DB
-	Bucket, Warehouse  string
+	Bucket, Lakehouse  string
 	readLeaseDuration  time.Duration
 	writeLeaseDuration time.Duration
 	now                func() time.Time
+	admissionMu        sync.RWMutex
+	admissionClosed    bool          // backup capture barrier; blocks new writes only
+	admissionRejected  atomic.Uint64 // submissions rejected while admissionClosed
 }
 
 // Open binds persistent identity. Optional durations configure read then write leases.
-func Open(path, bucket, warehouse, start string, leaseDurations ...time.Duration) (*Store, error) {
+func Open(path, bucket, lakehouse, start string, leaseDurations ...time.Duration) (*Store, error) {
 	ttl := DefaultReadLeaseDuration
 	if len(leaseDurations) > 0 {
 		ttl = leaseDurations[0]
@@ -164,7 +217,7 @@ func Open(path, bucket, warehouse, start string, leaseDurations ...time.Duration
 	fail := func(e error) (*Store, error) { db.Close(); return nil, e }
 	for _, q := range []string{
 		`PRAGMA journal_mode=WAL`, `PRAGMA synchronous=FULL`, `PRAGMA busy_timeout=10000`,
-		`CREATE TABLE IF NOT EXISTS config (id INTEGER PRIMARY KEY CHECK(id=1),bucket TEXT,warehouse TEXT,start INTEGER,frontier INTEGER,metadata TEXT,generation INTEGER)`,
+		`CREATE TABLE IF NOT EXISTS config (id INTEGER PRIMARY KEY CHECK(id=1),bucket TEXT,lakehouse TEXT,start INTEGER,frontier INTEGER,metadata TEXT,generation INTEGER)`,
 		`CREATE TABLE IF NOT EXISTS options (key TEXT PRIMARY KEY,value TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS permits (id TEXT PRIMARY KEY,owner TEXT NOT NULL,days TEXT NOT NULL,state TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS inbox (seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,payload TEXT NOT NULL,day TEXT NOT NULL,done INTEGER NOT NULL DEFAULT 0,accepted_at INTEGER NOT NULL DEFAULT (unixepoch()))`,
@@ -184,16 +237,19 @@ func Open(path, bucket, warehouse, start string, leaseDurations ...time.Duration
 			return fail(e)
 		}
 	}
-	if _, e = db.Exec(`INSERT OR IGNORE INTO config VALUES(1,?,?,?,?,'',0)`, bucket, warehouse, dayStart.UnixNano(), dayStart.UnixNano()); e != nil {
+	if e = migrateLakehouseIdentity(db); e != nil {
 		return fail(e)
 	}
-	var storedBucket, storedWarehouse string
+	if _, e = db.Exec(`INSERT OR IGNORE INTO config VALUES(1,?,?,?,?,'',0)`, bucket, lakehouse, dayStart.UnixNano(), dayStart.UnixNano()); e != nil {
+		return fail(e)
+	}
+	var storedBucket, storedLakehouse string
 	var storedStart int64
-	if e = db.QueryRow(`SELECT bucket,warehouse,start FROM config WHERE id=1`).Scan(&storedBucket, &storedWarehouse, &storedStart); e != nil {
+	if e = db.QueryRow(`SELECT bucket,lakehouse,start FROM config WHERE id=1`).Scan(&storedBucket, &storedLakehouse, &storedStart); e != nil {
 		return fail(e)
 	}
-	if storedBucket != bucket || storedWarehouse != warehouse || storedStart != dayStart.UnixNano() {
-		return fail(errors.New("durable configuration differs; do not reuse state for another bucket/warehouse/start"))
+	if storedBucket != bucket || storedLakehouse != lakehouse || storedStart != dayStart.UnixNano() {
+		return fail(errors.New("durable configuration differs; do not reuse state for another bucket/lakehouse/start"))
 	}
 	// Add a persisted reader deadline. Legacy readers
 	// receive one bounded migration window; reopening never extends it.
@@ -227,7 +283,7 @@ func Open(path, bucket, warehouse, start string, leaseDurations ...time.Duration
 	if _, e = db.Exec("UPDATE readers SET expires_at=? WHERE expires_at=0", time.Now().Add(ttl).UnixNano()); e != nil {
 		return fail(e)
 	}
-	store := &Store{DB: db, Bucket: bucket, Warehouse: warehouse, readLeaseDuration: ttl, writeLeaseDuration: writeTTL, now: time.Now}
+	store := &Store{DB: db, Bucket: bucket, Lakehouse: lakehouse, readLeaseDuration: ttl, writeLeaseDuration: writeTTL, now: time.Now}
 	if e = store.migrateWriteLeases(); e != nil {
 		return fail(e)
 	}
@@ -242,7 +298,7 @@ func (s *Store) Close() error { return s.DB.Close() }
 
 // View pins the current metadata for a reader. Repeating the same id returns that pin.
 func (s *Store) View(owner, id string) (View, error) {
-	v := View{ID: id, Warehouse: s.Warehouse}
+	v := View{ID: id, Lakehouse: s.Lakehouse}
 	if id == "" || owner == "" {
 		return v, errors.New("read id and owner required")
 	}
@@ -334,6 +390,8 @@ func (s *Store) ReleaseRead(id string) error {
 
 // Permit grants owner the right to write days. Repeating an active id returns the same grant.
 func (s *Store) Permit(id, owner string, days []string) ([]string, error) {
+	s.admissionMu.RLock()
+	defer s.admissionMu.RUnlock()
 	if id == "" || owner == "" || len(days) == 0 {
 		return nil, errors.New("permit id, owner and days required")
 	}
@@ -360,6 +418,10 @@ func (s *Store) Permit(id, owner string, days []string) ([]string, error) {
 	}
 	if !errors.Is(e, sql.ErrNoRows) {
 		return nil, e
+	}
+	if s.admissionClosed {
+		s.admissionRejected.Add(1)
+		return nil, ErrAdmissionClosed
 	}
 	var frontier int64
 	if e = tx.QueryRow(`SELECT frontier FROM config WHERE id=1`).Scan(&frontier); e != nil {
@@ -432,6 +494,12 @@ func (s *Store) OldReaders(day string) (int, error) {
 
 // Enqueue accepts a batch of late points for days already behind the frontier.
 func (s *Store) Enqueue(id string, records []Record) error {
+	s.admissionMu.RLock()
+	defer s.admissionMu.RUnlock()
+	if s.admissionClosed {
+		s.admissionRejected.Add(1)
+		return ErrAdmissionClosed
+	}
 	if id == "" || len(records) == 0 {
 		return errors.New("inbox id and records required")
 	}
@@ -498,6 +566,12 @@ func (s *Store) Enqueue(id string, records []Record) error {
 
 // Quarantine stores one payload that could not be applied, keyed for idempotent retry.
 func (s *Store) Quarantine(id, payload string) error {
+	s.admissionMu.RLock()
+	defer s.admissionMu.RUnlock()
+	if s.admissionClosed {
+		s.admissionRejected.Add(1)
+		return ErrAdmissionClosed
+	}
 	if id == "" {
 		return errors.New("quarantine id required")
 	}

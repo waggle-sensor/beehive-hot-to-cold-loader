@@ -8,15 +8,17 @@ Start with [architecture](architecture.md) to understand the service, or [config
 | [Configuration](configuration.md) | Operators: complete runtime settings and sibling-service integration |
 | [Deployment](deployment.md) | Operators: writer migration, reader migration, bootstrap, and deletion rollout |
 | [Operations](operations.md) | Operators: monitoring, restart, recovery, leases, and retained state |
+| [Backup and recovery](backup-recovery.md) | Operators: online snapshots, private Pelican backups, retention and fail-closed restore |
 | [Metrics](metrics.md) | Operators: Prometheus, Grafana, alerts, and profile retention |
 | [Development](development.md) | Developers: source map, extension points, and verification requirements |
+| [CI/CD](ci-cd.md) | Developers: GitHub Actions jobs, native smoke selection, and image publish rules |
 | [Validation](validation.md) | Developers and operators: native gates and performance policies |
 
 The [repository README](../README.md) provides build commands and a bounded run example. The [testing index](../testing/README.md) describes the maintained harnesses. Historical design and measurements live in [plan 12](https://github.com/seanshahkarami/sage-data-rework/blob/main/plans/12_dynamic_archival_service.md).
 
 ## Resources
 
-These references cover the warehouse layout, stored VARIANT values, and Iceberg v3 support used by the cold storage architecture:
+These references cover the lakehouse layout, stored VARIANT values, and Iceberg v3 support used by the cold storage architecture:
 
 - [DuckDB: the effect of Parquet row group sizes](https://duckdb.org/docs/2.0/guides/performance/file_formats#the-effect-of-row-group-sizes)
 - [DuckDB 2.0: VARIANT becomes a first-class citizen](https://duckdb.org/docs/2.0/whats_new_in_the_docs#variant-becomes-a-first-class-citizen)

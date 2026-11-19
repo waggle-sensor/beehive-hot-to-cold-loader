@@ -66,13 +66,13 @@ func (w *Worker) Reconcile(ctx context.Context, job *control.Job) (err error) {
 }
 
 // setup installs read-only HTTP secrets for the destination and, when present,
-// the bootstrap warehouse. Tokens are not written to profiles or journals.
+// the bootstrap lakehouse. Tokens are not written to profiles or journals.
 func (w *Worker) setup() (string, error) {
 	tok, e := w.Catalog.IO.token(false, 6*time.Hour+time.Minute)
 	if e != nil {
 		return "", e
 	}
-	setup := "LOAD httpfs; LOAD iceberg; CREATE SECRET archival_read (TYPE http, SCOPE " + Q(w.Catalog.Warehouse) + ", BEARER_TOKEN " + Q(tok) + w.Duck.testHTTP + ");"
+	setup := "LOAD httpfs; LOAD iceberg; CREATE SECRET archival_read (TYPE http, SCOPE " + Q(w.Catalog.Lakehouse) + ", BEARER_TOKEN " + Q(tok) + w.Duck.testHTTP + ");"
 	if w.Bootstrap != nil {
 		token, e := w.Bootstrap.token(false, 6*time.Hour+time.Minute)
 		if e != nil {
@@ -238,7 +238,7 @@ func (w *Worker) Build(ctx context.Context, job *control.Job) error {
 // adopts the snapshot already marked with this job instead of uploading again.
 func (w *Worker) Commit(ctx context.Context, job *control.Job) (string, error) {
 	// On uncertain commit, inspect the authoritative catalog before re-uploading.
-	t, e := w.Catalog.Catalog.LoadTable(ctx, ident)
+	t, e := w.Catalog.Catalog.LoadTable(ctx, w.Catalog.Identifier())
 	if e != nil {
 		return "", e
 	}

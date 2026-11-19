@@ -1,6 +1,8 @@
 // assets_test.go checks that the dashboard and alert rules name only metrics
 // this process can publish, plus the read-renewal series scraped from the API.
-// Every panel query must also stay scoped to its selected job and instance.
+// Loader panels pin the ServiceMonitor job and either keep instance=~"$instance"
+// (process panels) or aggregate instance away for the singleton workload.
+// API renewal panels keep their own job and instance variables.
 
 package observability_test
 
@@ -22,14 +24,20 @@ import (
 )
 
 func TestDashboardAndRuleMetricsExist(t *testing.T) {
-	store, err := control.Open(filepath.Join(t.TempDir(), "journal.db"), "waggle", "warehouse", "2025-03-01")
+	store, err := control.Open(filepath.Join(t.TempDir(), "journal.db"), "waggle", "lakehouse", "2025-03-01")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	metrics := observability.New(720*time.Hour, true, false)
 	handler := metrics.Handler(func(ctx context.Context) (observability.Snapshot, error) {
-		return store.MetricsSnapshot(ctx, control.SnapshotOptions{Retention: 720 * time.Hour, DeletionEnabled: true})
+		samples, err := store.MetricsSnapshot(ctx, control.SnapshotOptions{Retention: 720 * time.Hour, DeletionEnabled: true})
+		if err != nil {
+			return nil, err
+		}
+		// Include backup gauges even when Remote is unset (backup_configured=0).
+		backups := &control.BackupService{Store: store}
+		return append(samples, backups.Samples()...), nil
 	})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest("GET", "/metrics", nil))
@@ -84,7 +92,7 @@ func TestDashboardAndRuleMetricsExist(t *testing.T) {
 	if err = json.Unmarshal(read("grafana/beehive-hot-to-cold-loader.json"), &dashboard); err != nil {
 		t.Fatal(err)
 	}
-	if dashboard.UID != "beehive-hot-to-cold-loader" || dashboard.Schema != 38 {
+	if dashboard.UID != "beehive-hot-to-cold-loader" || dashboard.Schema != 42 {
 		t.Fatal("unstable dashboard identity/schema")
 	}
 	ids := map[int]bool{}
@@ -93,7 +101,7 @@ func TestDashboardAndRuleMetricsExist(t *testing.T) {
 			t.Fatal("duplicate panel ID")
 		}
 		ids[panel.ID] = true
-		if panel.Type == "row" {
+		if panel.Type == "row" || panel.Type == "text" {
 			continue
 		}
 		if len(panel.Targets) == 0 {
@@ -101,11 +109,26 @@ func TestDashboardAndRuleMetricsExist(t *testing.T) {
 		}
 		for _, target := range panel.Targets {
 			check(target.Expr)
-			job, instance := `job=~"$job"`, `instance=~"$instance"`
-			if strings.Contains(target.Expr, "$api_job") {
-				job, instance = `job=~"$api_job"`, `instance=~"$api_instance"`
+			// Node-graph edges are static vector(1) labels, not scraped series.
+			if strings.Contains(target.Expr, "vector(1)") && !metricNames.MatchString(target.Expr) {
+				continue
 			}
-			if !strings.Contains(target.Expr, job) || !strings.Contains(target.Expr, instance) {
+			if strings.Contains(target.Expr, "$api_job") {
+				if !strings.Contains(target.Expr, `job=~"$api_job"`) || !strings.Contains(target.Expr, `instance=~"$api_instance"`) {
+					t.Error("query not scoped to selected targets", target.Expr)
+				}
+				continue
+			}
+			if !strings.Contains(target.Expr, `job="beehive-hot-to-cold-loader"`) {
+				t.Error("query not scoped to selected targets", target.Expr)
+				continue
+			}
+			hasInstance := strings.Contains(target.Expr, `instance=~"$instance"`)
+			dropsInstance := strings.Contains(target.Expr, "without(instance)") ||
+				strings.Contains(target.Expr, "without (instance)") ||
+				strings.Contains(target.Expr, " by(") ||
+				strings.Contains(target.Expr, " by (")
+			if !hasInstance && !dropsInstance {
 				t.Error("query not scoped to selected targets", target.Expr)
 			}
 		}
@@ -129,7 +152,7 @@ func TestDashboardAndRuleMetricsExist(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{"prometheus/scrape.yaml", "prometheus/api-scrape.yaml", "grafana/provisioning/dashboards.yaml", "prometheus/alerts.test.yaml"} {
+	for _, name := range []string{"prometheus/scrape.yaml", "prometheus/alerts.test.yaml"} {
 		var doc map[string]any
 		if err = yaml.Unmarshal(read(name), &doc); err != nil {
 			t.Fatal(name, err)

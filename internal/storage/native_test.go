@@ -204,7 +204,7 @@ second",value,status,n1,q
 	if e = json.Unmarshal(journalBytes, &benchmarkTarget); e != nil {
 		t.Fatal(e)
 	}
-	benchmarkTarget.Warehouse = p.Base.String()
+	benchmarkTarget.Lakehouse = p.Base.String()
 	reader := *p
 	reader.ReadOnly = true
 	snapshot, e := inspectRemoteComparison(&reader, benchmarkTarget)

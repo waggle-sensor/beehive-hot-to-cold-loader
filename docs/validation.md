@@ -1,6 +1,6 @@
 # Validation and performance evidence
 
-[Documentation](README.md) · [Developer guide](development.md) · [Harness index](../testing/README.md)
+[Documentation](README.md) · [Developer guide](development.md) · [CI/CD](ci-cd.md) · [Harness index](../testing/README.md)
 
 Commands below run from the service root unless a linked harness says otherwise. Use dedicated fixtures and fresh isolated storage; native gates do not all run in the default unit suite. Detailed historical measurements remain in [the archival plan](https://github.com/seanshahkarami/sage-data-rework/blob/main/plans/12_dynamic_archival_service.md).
 
@@ -40,7 +40,7 @@ Repeat with 20 million and approximately 140 million unique points, each in a fr
 
 ### Bounded exact verification and disk guards
 
-All production `DuckDB.Equal` callers (source reconciliation, batch/build checks, remote readback and pre-deletion re-verification) now stage canonical primitive Parquet records locally. Each source is counted and canonicalized, with complete nanosecond time, name, sorted full tags, native VARIANT kind and JSON value. A hash of the full record routes rows into 16 private scratch partitions. Large partitions are refined using the next four hash bits until each comparison has at most 1,000,000 rows per side. Both directions of `EXCEPT ALL` still compare actual records and duplicate multiplicities. Matching hashes/counts alone never pass verification. If a partition still exceeds the cap after all 64 hash bits, verification fails closed with a capacity error. These scratch partitions do not change the published daily warehouse layout.
+All production `DuckDB.Equal` callers (source reconciliation, batch/build checks, remote readback and pre-deletion re-verification) now stage canonical primitive Parquet records locally. Each source is counted and canonicalized, with complete nanosecond time, name, sorted full tags, native VARIANT kind and JSON value. A hash of the full record routes rows into 16 private scratch partitions. Large partitions are refined using the next four hash bits until each comparison has at most 1,000,000 rows per side. Both directions of `EXCEPT ALL` still compare actual records and duplicate multiplicities. Matching hashes/counts alone never pass verification. If a partition still exceeds the cap after all 64 hash bits, verification fails closed with a capacity error. These scratch partitions do not change the published daily lakehouse layout.
 
 Fresh exact comparisons use sixteen threads, a 65,536-row partition flush threshold and at most 256 open files, accommodating 16 partitions per thread. Only the original canonicalization reads the source data; recursive refinement/exact comparisons read local files. Count prechecks may additionally read source metadata/data. Comparison scratch belongs to a fresh private directory and is removed when that comparison returns. A process crash can leave it for operator inspection; no existing run directory is automatically adopted or removed.
 

@@ -20,9 +20,16 @@ sys.path.insert(0,str(run.WORKSPACE / "sage-data-client/src"))
 
 
 class IsolationTests(unittest.TestCase):
+    def test_configured_table_path_is_scoped(self):
+        with patch.dict(os.environ, COLD_NAMESPACE="telemetry", COLD_TABLE_NAME="readings"):
+            self.assertEqual(probe.table_path(), "/telemetry/readings")
+        for value in ("", "../other", "a/b", "a.b", "with space"):
+            with patch.dict(os.environ, COLD_NAMESPACE=value, COLD_TABLE_NAME="observations"):
+                with self.assertRaises(ValueError):probe.table_path()
+
     def test_origin_and_local_paths_cannot_select_existing_storage(self):
         self.assertEqual(run.origin_url("https://origin:8443/sage"),"https://origin:8443/sage")
-        for url in ("http://origin/sage","https://origin/node-data","https://origin/sage/cold-storage-demo/warehouse",
+        for url in ("http://origin/sage","https://origin/node-data","https://origin/sage/cold-storage-demo/lakehouse",
                     "https://origin/sage/../sage","https://name:secret@origin/sage","https://origin/sage?authz=secret"):
             with self.subTest(url=url),self.assertRaises(ValueError):run.origin_url(url)
         with self.assertRaises(ValueError):run.local("/node-data/fixture")
@@ -31,17 +38,36 @@ class IsolationTests(unittest.TestCase):
             link.symlink_to("/node-data",target_is_directory=True)
             with self.assertRaises(ValueError):run.local(link/"fixture")
 
-    def test_saved_run_cannot_target_demo_project_or_warehouse(self):
+    def test_saved_run_cannot_target_demo_project_or_lakehouse(self):
         with TemporaryDirectory() as directory:
             root=Path(directory).resolve();run_id="a"*32
-            config=dict(RUN_ID=run_id,LIVE_ROOT=str(root),WAREHOUSE="https://origin/sage/cold-storage-archive-live-"+run_id+"/warehouse")
-            manifest=dict(project="sage-archive-live-"+run_id,warehouse=config["WAREHOUSE"],origin="https://origin/sage")
+            config=dict(RUN_ID=run_id,LIVE_ROOT=str(root),LAKEHOUSE="https://origin/sage/cold-test-"+run_id+"/lakehouse")
+            manifest=dict(project="sage-archive-live-"+run_id,lakehouse=config["LAKEHOUSE"],origin="https://origin/sage")
             run.save(root/"private-config.json",config);run.save(root/"run.json",manifest)
             self.assertEqual(run.Run(root).manifest["project"],manifest["project"])
-            for field,value in (("project","demo"),("warehouse","https://origin/sage/cold-storage-demo/warehouse")):
+            for field,value in (("project","demo"),("lakehouse","https://origin/sage/cold-storage-demo/lakehouse")):
                 bad={**manifest,field:value};run.save(root/"run.json",bad)
                 with self.subTest(field=field),self.assertRaises(ValueError):run.Run(root)
             self.assertEqual((root/"private-config.json").stat().st_mode&0o777,0o600)
+
+    def test_image_pins_replace_application_builds_and_keep_the_probe(self):
+        digest = "a"*64
+        with self.assertRaises(ValueError):
+            run.image_ref("waggle/beehive-data-api:pr-12")
+        self.assertEqual(run.image_ref("waggle/beehive-data-api@sha256:"+digest), "waggle/beehive-data-api@sha256:"+digest)
+        with TemporaryDirectory() as directory:
+            compose = Path(directory)/"compose.yml"
+            compose.write_text(Path(run.HERE/"compose.yml").read_text())
+            run.pin_application_images(compose)
+            text = compose.read_text()
+            self.assertNotIn("ARCHIVER_SOURCE", text)
+            self.assertNotIn("API_SOURCE", text)
+            self.assertNotIn("loader-build", text)
+            self.assertEqual(text.count("platform: linux/amd64"), 3)
+            self.assertIn("probe-build", text)
+            self.assertIn("${ARCHIVER_IMAGE:?}", text)
+            self.assertIn("${API_IMAGE:?}", text)
+            self.assertIn("${LOADER_IMAGE:?}", text)
 
     def test_non_duckdb2_fails_before_origin_io(self):
         from types import SimpleNamespace
@@ -53,9 +79,9 @@ class IsolationTests(unittest.TestCase):
     def test_failed_readback_never_enables_deletion_and_stops_only_own_stack(self):
         with TemporaryDirectory() as directory:
             root=Path(directory).resolve();run_id="b"*32
-            config=dict(RUN_ID=run_id,LIVE_ROOT=str(root),WAREHOUSE="https://origin/sage/cold-storage-archive-live-"+run_id+"/warehouse",
+            config=dict(RUN_ID=run_id,LIVE_ROOT=str(root),LAKEHOUSE="https://origin/sage/cold-test-"+run_id+"/lakehouse",
                         COORDINATE_ONLY="true",DELETE_ENABLED="false")
-            manifest=dict(project="sage-archive-live-"+run_id,warehouse=config["WAREHOUSE"],origin="https://origin/sage",phase="prepared",passed=False)
+            manifest=dict(project="sage-archive-live-"+run_id,lakehouse=config["LAKEHOUSE"],origin="https://origin/sage",phase="prepared",passed=False)
             run.save(root/"private-config.json",config);run.save(root/"run.json",manifest)
             (root/"reports").mkdir();run.save(root/"reports/bootstrap.json",{"bucket_id":"fixture-only"})
             runner=run.Run(root)
@@ -124,9 +150,9 @@ class VerifierTests(unittest.TestCase):
         with patch.dict(os.environ,INFLUX_TOKEN="test-only"),patch.object(probe,"call",return_value=(text.replace(",value,",",other,").encode(),Message())):
             with self.assertRaises(AssertionError):probe.source_rows()
 
-    def test_warehouse_audit_requires_v3_variant_map_ns_and_day_partition(self):
-        root="https://origin/sage/cold-storage-archive-live-"+"a"*32+"/warehouse"
-        body={"format-version":3,"location":root+"/sage/obs","current-schema-id":0,
+    def test_lakehouse_audit_requires_v3_variant_map_ns_and_day_partition(self):
+        root="https://origin/sage/cold-test-"+"a"*32+"/lakehouse"
+        body={"format-version":3,"location":root+"/sage/observations","current-schema-id":0,
               "schemas":[{"schema-id":0,"fields":[{"id":1,"name":"time","type":"timestamptz_ns"},
                 {"id":11,"name":"value","type":"variant"},{"id":10,"name":"meta","type":{"type":"map"}}]}],
               "properties":{"sage.layout":"plugin-vsn-time","sage.layout.version":"bounded-plugin-v1",
@@ -139,10 +165,10 @@ class VerifierTests(unittest.TestCase):
                        lambda b:b["schemas"][0]["fields"][2].update(type={"type":"variant"}),
                        lambda b:b["partition-specs"][0]["fields"][0].update(transform="hour")):
             bad=copy.deepcopy(body);mutate(bad);bads.append(bad)
-        with TemporaryDirectory() as directory,patch.dict(os.environ,WAREHOUSE=root),patch.object(probe,"REPORTS",Path(directory)),patch.object(probe,"token",return_value="test-token"):
-            with patch.object(probe,"json_call",return_value=body):self.assertEqual(probe.warehouse_contract(root+"/sage/obs/metadata/old.metadata.json")["format"],3)
+        with TemporaryDirectory() as directory,patch.dict(os.environ,LAKEHOUSE=root),patch.object(probe,"REPORTS",Path(directory)),patch.object(probe,"token",return_value="test-token"):
+            with patch.object(probe,"json_call",return_value=body):self.assertEqual(probe.lakehouse_contract(root+"/sage/observations/metadata/old.metadata.json")["format"],3)
             for bad in bads:
-                with patch.object(probe,"json_call",return_value=bad),self.assertRaises(AssertionError):probe.warehouse_contract(root+"/sage/obs/metadata/old.metadata.json")
+                with patch.object(probe,"json_call",return_value=bad),self.assertRaises(AssertionError):probe.lakehouse_contract(root+"/sage/observations/metadata/old.metadata.json")
 
 
 

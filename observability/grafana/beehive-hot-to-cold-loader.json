@@ -1,68 +1,140 @@
 {
-  "uid": "beehive-hot-to-cold-loader",
-  "title": "Beehive hot-to-cold loader",
-  "description": "Archival outcomes, active stages, backlog, read leases and Go process health. Detailed performance profiles remain separate.",
-  "schemaVersion": 38,
-  "version": 1,
-  "editable": false,
-  "tags": [
-    "beehive",
-    "archival"
-  ],
-  "timezone": "browser",
-  "refresh": "30s",
-  "time": {
-    "from": "now-24h",
-    "to": "now"
-  },
-  "panels": [
+  "__inputs": [
     {
-      "id": 1,
-      "type": "row",
-      "title": "Service overview",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 0,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus that scrapes beehive-hot-to-cold-loader",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "13.3.0"
     },
     {
-      "id": 2,
-      "type": "stat",
-      "title": "Target availability",
-      "description": "Target availability",
+      "type": "panel",
+      "id": "nodeGraph",
+      "name": "Node Graph",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "piechart",
+      "name": "Pie chart",
+      "version": ""
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "13.2.4"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "state-timeline",
+      "name": "State timeline",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "text",
+      "name": "Text",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Archival outcomes, active stages, backlog, read leases and Go process health. Detailed performance profiles remain separate.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 94,
+      "title": "Service overview",
+      "type": "row"
+    },
+    {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 1,
-        "w": 8,
-        "h": 4
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "up{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "{{instance}}",
-          "range": false,
-          "instant": true
-        }
-      ],
+      "description": "1 means the last Prometheus scrape of /metrics succeeded. 0 means that scrape failed. No sample means the target is unknown, not healthy.",
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            },
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "text": "Down"
+                },
+                "1": {
+                  "color": "green",
+                  "text": "Up"
+                }
+              },
+              "type": "value"
+            }
+          ],
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "red",
-                "value": null
+                "value": 0
               },
               {
                 "color": "green",
@@ -70,35 +142,23 @@
               }
             ]
           },
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Unknown",
-                  "color": "gray"
-                }
-              }
-            },
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "Down",
-                  "color": "red"
-                },
-                "1": {
-                  "text": "Up",
-                  "color": "green"
-                }
-              }
-            }
-          ]
+          "unit": "short"
         },
         "overrides": []
       },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 1
+      },
+      "id": 2,
       "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -106,142 +166,166 @@
           "fields": "",
           "values": false
         },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto"
-      }
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (up{job=\"beehive-hot-to-cold-loader\"})",
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Target availability",
+      "type": "stat"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Time since this process started. A restart resets it and does not include the previous process.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 1
+      },
       "id": 3,
-      "type": "stat",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "time() - max without(instance) (process_start_time_seconds{job=\"beehive-hot-to-cold-loader\"})",
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "A"
+        }
+      ],
       "title": "Go process uptime",
-      "description": "Go process uptime",
+      "type": "stat"
+    },
+    {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 8,
-        "y": 1,
-        "w": 8,
-        "h": 4
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "time() - process_start_time_seconds{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "{{instance}}",
-          "range": false,
-          "instant": true
-        }
-      ],
+      "description": "'Coordinate-only' means the process serves grants and receipts without creating archive jobs, late jobs, or deletions. Essentially, the archival pipeline is paused.",
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "Running"
+                },
+                "1": {
+                  "color": "blue",
+                  "index": 0,
+                  "text": "Paused"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "index": 2,
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            }
+          ],
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
           },
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Unknown",
-                  "color": "gray"
-                }
-              }
-            }
-          ]
+          "unit": "bool"
         },
         "overrides": []
       },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto"
-      }
-    },
-    {
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 1
+      },
       "id": 4,
-      "type": "stat",
-      "title": "Coordinate-only mode",
-      "description": "Coordinate-only mode",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 16,
-        "y": 1,
-        "w": 8,
-        "h": 4
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_coordinate_only{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "{{instance}}",
-          "range": false,
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bool",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Unknown",
-                  "color": "gray"
-                }
-              }
-            },
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "Running",
-                  "color": "green"
-                },
-                "1": {
-                  "text": "Coordinate only",
-                  "color": "blue"
-                }
-              }
-            }
-          ]
-        },
-        "overrides": []
-      },
       "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -249,142 +333,488 @@
           "fields": "",
           "values": false
         },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto"
-      }
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_coordinate_only{job=\"beehive-hot-to-cold-loader\"})",
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Archival Pipeline State",
+      "type": "stat"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "1 means guarded hot deletion is allowed. 'Coordinate-only' mode keeps this at 0.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            },
+            {
+              "options": {
+                "0": {
+                  "color": "gray",
+                  "text": "Disabled"
+                },
+                "1": {
+                  "color": "green",
+                  "text": "Enabled"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "bool"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 5
+      },
       "id": 5,
-      "type": "stat",
-      "title": "Hot deletion enabled",
-      "description": "Hot deletion enabled",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "gridPos": {
-        "x": 0,
-        "y": 5,
-        "w": 8,
-        "h": 4
-      },
+      "pluginVersion": "13.3.0",
       "targets": [
         {
-          "refId": "A",
-          "expr": "hot_to_cold_deletion_enabled{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "{{instance}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_deletion_enabled{job=\"beehive-hot-to-cold-loader\"})",
+          "instant": true,
+          "legendFormat": "",
           "range": false,
-          "instant": true
+          "refId": "A"
         }
       ],
+      "title": "Hot deletion enabled",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Minimum age before a complete UTC day can be archived. Production uses 30 days (720h). Backlog can keep data hot longer.",
       "fieldConfig": {
         "defaults": {
-          "unit": "bool",
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            }
+          ],
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
           },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 5
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max without(instance) (hot_to_cold_hot_retention_seconds{job=\"beehive-hot-to-cold-loader\"})",
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Hot retention (hot -> cold)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "How far the frontier sits behind the hot-retention deadline. Zero means it is inside that window. Scheduling by whole UTC days can add up to one day. This is not deletion lag.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#ad46ff",
+            "mode": "thresholds"
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "#EAB839",
+                "value": 32
+              },
+              {
+                "color": "red",
+                "value": 62
+              }
+            ]
+          },
+          "unit": "d"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 5
+      },
+      "id": 62,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max without(instance) (hot_to_cold_lag_seconds{job=\"beehive-hot-to-cold-loader\"}) / 86400",
+          "instant": false,
+          "legendFormat": "{{job}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Retention-adjusted routing lag",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Exclusive boundary between cold and hot data. A query at or after this time still reads Influx. This is not the time Influx has deleted.",
+      "fieldConfig": {
+        "defaults": {
           "mappings": [
             {
-              "type": "special",
               "options": {
                 "match": "null",
                 "result": {
-                  "text": "Unknown",
-                  "color": "gray"
+                  "color": "gray",
+                  "text": "Unknown"
                 }
+              },
+              "type": "special"
+            }
+          ],
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
               }
+            ]
+          },
+          "unit": "dateTimeAsLocal"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 22,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_routing_frontier_timestamp_seconds{job=\"beehive-hot-to-cold-loader\"}) * 1000",
+          "instant": true,
+          "legendFormat": "{{job}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Cold routing frontier",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Age of the last verified off-node state backup. Zero before the first success is unknown. A missing scrape is unknown, not proof that a recent backup exists.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 86400
+              },
+              {
+                "color": "red",
+                "value": 172800
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 13
+      },
+      "id": 53,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "time() - (max without(instance) (hot_to_cold_backup_last_success_timestamp_seconds{job=\"beehive-hot-to-cold-loader\"}) > 0)",
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Last verified state backup",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "1 while new write, late, and quarantine admission is closed for snapshot capture. Existing readers and renewals continue. An overlong closed barrier is an alert condition.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
             },
             {
-              "type": "value",
               "options": {
                 "0": {
-                  "text": "Disabled",
-                  "color": "gray"
+                  "color": "green",
+                  "text": "Open"
                 },
                 "1": {
-                  "text": "Enabled",
-                  "color": "green"
+                  "color": "orange",
+                  "text": "Closed"
                 }
-              }
+              },
+              "type": "value"
             }
-          ]
+          ],
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "bool"
         },
         "overrides": []
       },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto"
-      }
-    },
-    {
-      "id": 6,
-      "type": "stat",
-      "title": "Hot retention",
-      "description": "Hot retention",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
       "gridPos": {
+        "h": 4,
+        "w": 8,
         "x": 8,
-        "y": 5,
-        "w": 8,
-        "h": 4
+        "y": 13
       },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_hot_retention_seconds{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "{{instance}}",
-          "range": false,
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Unknown",
-                  "color": "gray"
-                }
-              }
-            }
-          ]
-        },
-        "overrides": []
-      },
+      "id": 54,
       "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -392,64 +822,168 @@
           "fields": "",
           "values": false
         },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto"
-      }
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_backup_admission_closed{job=\"beehive-hot-to-cold-loader\"})",
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "State backup admission barrier",
+      "type": "stat"
     },
     {
-      "id": 7,
-      "type": "stat",
-      "title": "Build revision",
-      "description": "Build revision",
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Current state backup operation phase from status. idle means none has been recorded yet.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "waiting_boundary"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "draining_writers"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "copying"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "uploading"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "idle"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "gray",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
+        "h": 4,
+        "w": 8,
         "x": 16,
-        "y": 5,
-        "w": 8,
-        "h": 4
+        "y": 13
       },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_build_info{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "{{instance}} / {{version}} / {{revision}}",
-          "range": false,
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Unknown",
-                  "color": "gray"
-                }
-              }
-            }
-          ]
-        },
-        "overrides": []
-      },
+      "id": 55,
       "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -457,1431 +991,1710 @@
           "fields": "",
           "values": false
         },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto"
-      }
+        "showPercentChange": false,
+        "textMode": "name",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_backup_phase{job=\"beehive-hot-to-cold-loader\"}) == 1",
+          "instant": true,
+          "legendFormat": "{{phase}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "State backup phase",
+      "type": "stat"
     },
     {
-      "id": 8,
-      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "id": 95,
       "title": "Outcomes and errors",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 9,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
+      "type": "row"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "First ROUTED and COMPLETE milestones seen in this time range. ROUTED means the cold snapshot was activated. COMPLETE is a later outcome. Events from before scraping started, and the journal migration baseline, are not included.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
       "id": 9,
-      "type": "timeseries",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by(job,mode,milestone) (increase(hot_to_cold_job_milestones_total{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"}[$__range]))",
+          "instant": false,
+          "legendFormat": "{{mode}} {{milestone}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
       "title": "Milestones observed in selected window",
-      "description": "ROUTED means cold data activated; COMPLETE is a separate outcome. Includes only events observed after scrape history begins; journal migration baseline is not an event in this window.",
+      "type": "timeseries"
+    },
+    {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 10,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (job,instance,mode,milestone) (increase(hot_to_cold_job_milestones_total{job=~\"$job\",instance=~\"$instance\",mode=~\"$mode\"}[$__range]))",
-          "legendFormat": "{{instance}} {{mode}} {{milestone}}",
-          "range": true,
-          "instant": false
-        }
-      ],
+      "description": "Most recent ROUTED or COMPLETE time recorded for each mode. A missing or zero timestamp is hidden.",
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            }
+          ],
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
-          }
+          },
+          "unit": "dateTimeAsLocal"
         },
         "overrides": []
       },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
       "id": 10,
-      "type": "stat",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "(max without(instance) (hot_to_cold_last_job_milestone_timestamp_seconds{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"}) > 0) * 1000",
+          "instant": true,
+          "legendFormat": "{{mode}} {{milestone}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
       "title": "Last known job milestones",
-      "description": "Zero/unknown historical timestamps are hidden.",
+      "type": "stat"
+    },
+    {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 12,
-        "y": 10,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "(hot_to_cold_last_job_milestone_timestamp_seconds{job=~\"$job\",instance=~\"$instance\",mode=~\"$mode\"} > 0) * 1000",
-          "legendFormat": "{{instance}} {{mode}} {{milestone}}",
-          "range": false,
-          "instant": true
-        }
-      ],
+      "description": "Unfinished jobs whose saved state still has an error. This is the current set, not a count of past failed attempts.",
       "fieldConfig": {
         "defaults": {
-          "unit": "dateTimeAsIso",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
           },
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Unknown",
-                  "color": "gray"
-                }
-              }
-            }
-          ]
+          "unit": "short"
         },
         "overrides": []
       },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto"
-      }
-    },
-    {
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      },
       "id": 11,
-      "type": "timeseries",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_jobs_with_errors{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"})",
+          "instant": false,
+          "legendFormat": "{{mode}} {{state}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
       "title": "Current jobs carrying errors",
-      "description": "Current unresolved errors in unfinished jobs, not cumulative failed attempts.",
+      "type": "timeseries"
+    },
+    {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 17,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_jobs_with_errors{job=~\"$job\",instance=~\"$instance\",mode=~\"$mode\"}",
-          "legendFormat": "{{instance}} {{mode}} {{state}}",
-          "range": true,
-          "instant": false
-        }
-      ],
+      "description": "Rate of finished stage attempts that failed or were canceled. Waiting for a lease is excluded. The counter resets when the process restarts.",
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
-          }
+          },
+          "unit": "ops"
         },
         "overrides": []
       },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 25
+      },
       "id": 12,
-      "type": "timeseries",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by(job,mode,stage,outcome) (rate(hot_to_cold_step_attempts_total{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",outcome=~\"error|canceled\"}[$__rate_interval]))",
+          "instant": false,
+          "legendFormat": "{{mode}} {{stage}} {{outcome}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
       "title": "Failed or canceled attempt rate",
-      "description": "Process-local attempts reset on restart; waits are excluded.",
+      "type": "timeseries"
+    },
+    {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 12,
-        "y": 17,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by(job,instance,mode,stage,outcome) (rate(hot_to_cold_step_attempts_total{job=~\"$job\",instance=~\"$instance\",mode=~\"$mode\",outcome=~\"error|canceled\"}[$__rate_interval]))",
-          "legendFormat": "{{instance}} {{mode}} {{stage}} {{outcome}}",
-          "range": true,
-          "instant": false
-        }
-      ],
+      "description": "Rate of scheduler or journal selection errors since this process started. The counter resets on restart.",
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
-          }
+          },
+          "unit": "ops"
         },
         "overrides": []
       },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
       "id": 13,
-      "type": "timeseries",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum without(instance) (rate(hot_to_cold_scheduler_errors_total{job=\"beehive-hot-to-cold-loader\"}[$__rate_interval]))",
+          "instant": false,
+          "legendFormat": "{{operation}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
       "title": "Scheduler errors",
-      "description": "Selection/journal errors since process start.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 24,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "rate(hot_to_cold_scheduler_errors_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])",
-          "legendFormat": "{{instance}} {{operation}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ops",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
+      "type": "timeseries"
     },
     {
-      "id": 14,
-      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "id": 96,
       "title": "Work in progress",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 31,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
+      "type": "row"
     },
     {
-      "id": 15,
-      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Jobs waiting at each saved state. The state names the next step, not a worker that is running it now.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "id": 60,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_jobs{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"})",
+          "instant": false,
+          "legendFormat": "{{mode}} {{state}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
       "title": "Jobs by durable next-step state",
-      "description": "Durable state is the next step, not necessarily an executing operation.",
+      "type": "stat"
+    },
+    {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 32,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_jobs{job=~\"$job\",instance=~\"$instance\",mode=~\"$mode\"}",
-          "legendFormat": "{{instance}} {{mode}} {{state}}",
-          "range": true,
-          "instant": false
-        }
-      ],
+      "description": "Jobs waiting at each saved state. The state names the next step, not a worker that is running it now.",
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
-          }
+          },
+          "unit": "short"
         },
         "overrides": []
       },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 47
+      },
+      "id": 15,
       "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
         "legend": {
+          "calcs": [],
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
         }
-      }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_jobs{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"})",
+          "instant": false,
+          "legendFormat": "{{mode}} {{state}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Jobs by durable next-step state",
+      "type": "timeseries"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Stage attempts running now. The value returns to zero when the attempt finishes or the process restarts. Waiting for a lease is not an executing attempt.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "green",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "fillOpacity": 70,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineWidth": 0,
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "index": 11,
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            },
+            {
+              "options": {
+                "0": {
+                  "color": "transparent",
+                  "index": 0,
+                  "text": "idle"
+                },
+                "1": {
+                  "color": "blue",
+                  "index": 1,
+                  "text": "FENCING"
+                },
+                "2": {
+                  "color": "light-blue",
+                  "index": 2,
+                  "text": "EXPORTING"
+                },
+                "3": {
+                  "color": "purple",
+                  "index": 3,
+                  "text": "EXPORTED"
+                },
+                "4": {
+                  "color": "dark-blue",
+                  "index": 4,
+                  "text": "RECONCILED"
+                },
+                "5": {
+                  "color": "yellow",
+                  "index": 5,
+                  "text": "BUILT"
+                },
+                "6": {
+                  "color": "orange",
+                  "index": 6,
+                  "text": "COMMITTED"
+                },
+                "7": {
+                  "color": "dark-orange",
+                  "index": 7,
+                  "text": "REMOTE_VERIFIED"
+                },
+                "8": {
+                  "color": "green",
+                  "index": 8,
+                  "text": "ROUTED"
+                },
+                "9": {
+                  "color": "red",
+                  "index": 9,
+                  "text": "DELETING"
+                },
+                "10": {
+                  "color": "dark-red",
+                  "index": 10,
+                  "text": "DELETE_REQUESTED"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 12,
+        "x": 12,
+        "y": 47
+      },
       "id": 16,
-      "type": "timeseries",
+      "options": {
+        "alignValue": "left",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "mergeValues": true,
+        "rowHeight": 0.9,
+        "showValue": "auto",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"FENCING\"})) * 1 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"EXPORTING\"})) * 2 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"EXPORTED\"})) * 3 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"RECONCILED\"})) * 4 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"BUILT\"})) * 5 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"COMMITTED\"})) * 6 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"REMOTE_VERIFIED\"})) * 7 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"ROUTED\"})) * 8 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"DELETING\"})) * 9 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"DELETE_REQUESTED\"})) * 10",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "{{mode}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
       "title": "Executing attempts",
-      "description": "Current execution, zero after restart; waits do not count as completed attempts.",
+      "type": "state-timeline"
+    },
+    {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 12,
-        "y": 32,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_step_in_progress{job=~\"$job\",instance=~\"$instance\",mode=~\"$mode\"}",
-          "legendFormat": "{{instance}} {{mode}} {{stage}}",
-          "range": true,
-          "instant": false
-        }
-      ],
+      "description": "When the next retry of a failed attempt is due. Hidden when nothing is scheduled.",
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            }
+          ],
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
-          }
+          },
+          "unit": "dateTimeAsLocal"
         },
         "overrides": []
       },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 17,
-      "type": "timeseries",
-      "title": "Active attempt age",
-      "description": "Only executing attempts. The synchronous scheduler can remain unchanged during these operations.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
       "gridPos": {
+        "h": 7,
+        "w": 12,
         "x": 0,
-        "y": 39,
-        "w": 12,
-        "h": 7
+        "y": 54
       },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "(time() - hot_to_cold_step_started_timestamp_seconds{job=~\"$job\",instance=~\"$instance\",mode=~\"$mode\"}) and (hot_to_cold_step_in_progress{job=~\"$job\",instance=~\"$instance\",mode=~\"$mode\"} == 1)",
-          "legendFormat": "{{instance}} {{mode}} {{stage}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 18,
-      "type": "timeseries",
-      "title": "Waiting jobs",
-      "description": "Distinct blocked jobs reconstructed from current journal/configuration and retry state.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 39,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_jobs_waiting{job=~\"$job\",instance=~\"$instance\",mode=~\"$mode\"}",
-          "legendFormat": "{{instance}} {{mode}} {{reason}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
       "id": 19,
-      "type": "stat",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "(max without(instance) (hot_to_cold_next_retry_timestamp_seconds{job=\"beehive-hot-to-cold-loader\"}) > 0) * 1000",
+          "instant": true,
+          "legendFormat": "{{job}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
       "title": "Next retry",
-      "description": "Zero means no scheduled retry.",
+      "type": "stat"
+    },
+    {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Jobs waiting at each saved state in a node graph format. The state names the next step, not a worker that is running it now. This graph is a good reference to see the order of the steps.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "mainStat"
+            },
+            "properties": []
+          }
+        ]
       },
       "gridPos": {
+        "h": 8,
+        "w": 24,
         "x": 0,
-        "y": 46,
-        "w": 12,
-        "h": 7
+        "y": 61
       },
+      "id": 80,
+      "options": {
+        "edges": {
+          "mainStatUnit": "short"
+        },
+        "layoutAlgorithm": "layered",
+        "nodes": {
+          "mainStatUnit": "short"
+        },
+        "zoomMode": "cooperative"
+      },
+      "pluginVersion": "13.3.0",
       "targets": [
         {
-          "refId": "A",
-          "expr": "(hot_to_cold_next_retry_timestamp_seconds{job=~\"$job\",instance=~\"$instance\"} > 0) * 1000",
-          "legendFormat": "{{job}} / {{instance}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "label_replace(label_replace(sum by (state) (max without (instance) (hot_to_cold_jobs{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"})), \"id\", \"$1\", \"state\", \"(.*)\"), \"title\", \"$1\", \"state\", \"(.*)\")",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{state}}",
           "range": false,
-          "instant": true
+          "refId": "nodes"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "label_replace(label_replace(label_replace(vector(1), \"id\", \"FENCING-EXPORTING\", \"\", \"\"), \"source\", \"FENCING\", \"\", \"\"), \"target\", \"EXPORTING\", \"\", \"\") or label_replace(label_replace(label_replace(vector(1), \"id\", \"EXPORTING-EXPORTED\", \"\", \"\"), \"source\", \"EXPORTING\", \"\", \"\"), \"target\", \"EXPORTED\", \"\", \"\") or label_replace(label_replace(label_replace(vector(1), \"id\", \"EXPORTED-RECONCILED\", \"\", \"\"), \"source\", \"EXPORTED\", \"\", \"\"), \"target\", \"RECONCILED\", \"\", \"\") or label_replace(label_replace(label_replace(vector(1), \"id\", \"RECONCILED-BUILT\", \"\", \"\"), \"source\", \"RECONCILED\", \"\", \"\"), \"target\", \"BUILT\", \"\", \"\") or label_replace(label_replace(label_replace(vector(1), \"id\", \"BUILT-COMMITTED\", \"\", \"\"), \"source\", \"BUILT\", \"\", \"\"), \"target\", \"COMMITTED\", \"\", \"\") or label_replace(label_replace(label_replace(vector(1), \"id\", \"COMMITTED-REMOTE_VERIFIED\", \"\", \"\"), \"source\", \"COMMITTED\", \"\", \"\"), \"target\", \"REMOTE_VERIFIED\", \"\", \"\") or label_replace(label_replace(label_replace(vector(1), \"id\", \"REMOTE_VERIFIED-ROUTED\", \"\", \"\"), \"source\", \"REMOTE_VERIFIED\", \"\", \"\"), \"target\", \"ROUTED\", \"\", \"\") or label_replace(label_replace(label_replace(vector(1), \"id\", \"ROUTED-DELETING\", \"\", \"\"), \"source\", \"ROUTED\", \"\", \"\"), \"target\", \"DELETING\", \"\", \"\") or label_replace(label_replace(label_replace(vector(1), \"id\", \"DELETING-DELETE_REQUESTED\", \"\", \"\"), \"source\", \"DELETING\", \"\", \"\"), \"target\", \"DELETE_REQUESTED\", \"\", \"\") or label_replace(label_replace(label_replace(vector(1), \"id\", \"DELETE_REQUESTED-COMPLETE\", \"\", \"\"), \"source\", \"DELETE_REQUESTED\", \"\", \"\"), \"target\", \"COMPLETE\", \"\", \"\") or label_replace(label_replace(label_replace(vector(1), \"id\", \"ROUTED-COMPLETE\", \"\", \"\"), \"source\", \"ROUTED\", \"\", \"\"), \"target\", \"COMPLETE\", \"\", \"\")",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{source}}->{{target}}",
+          "range": false,
+          "refId": "edges"
         }
       ],
+      "title": "Archive and late next-step graph",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "string",
+                "targetField": "id"
+              },
+              {
+                "destinationType": "string",
+                "targetField": "title"
+              },
+              {
+                "destinationType": "string",
+                "targetField": "state"
+              },
+              {
+                "destinationType": "string",
+                "targetField": "source"
+              },
+              {
+                "destinationType": "string",
+                "targetField": "target"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true
+            },
+            "renameByName": {
+              "Value": "mainStat",
+              "Value #edges": "mainStat",
+              "Value #nodes": "mainStat",
+              "state": "title"
+            }
+          }
+        }
+      ],
+      "type": "nodeGraph"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Age of the oldest job that has not finished. Hidden when no unfinished job exists or its creation time was not recorded.",
       "fieldConfig": {
         "defaults": {
-          "unit": "dateTimeAsIso",
+          "color": {
+            "fixedColor": "#ad46ff",
+            "mode": "thresholds"
+          },
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
           },
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Unknown",
-                  "color": "gray"
-                }
-              }
-            }
-          ]
+          "unit": "s"
         },
         "overrides": []
       },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto"
-      }
-    },
-    {
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 69
+      },
       "id": 20,
-      "type": "timeseries",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "time() - (max without(instance) (hot_to_cold_oldest_pending_job_created_timestamp_seconds{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"}) > 0)",
+          "instant": false,
+          "legendFormat": "{{mode}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
       "title": "Oldest unfinished job age",
-      "description": "Hidden when no unfinished job or its creation time is unknown.",
+      "type": "stat"
+    },
+    {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 12,
-        "y": 46,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "time() - (hot_to_cold_oldest_pending_job_created_timestamp_seconds{job=~\"$job\",instance=~\"$instance\",mode=~\"$mode\"} > 0)",
-          "legendFormat": "{{instance}} {{mode}}",
-          "range": true,
-          "instant": false
-        }
-      ],
+      "description": "Jobs blocked now, split by writers, readers, deletion disabled, retry backoff, or coordinate-only. The count is rebuilt from the journal.",
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
-          }
+          },
+          "unit": "short"
         },
         "overrides": []
       },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 69
+      },
+      "id": 18,
       "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
         "legend": {
+          "calcs": [],
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
         }
-      }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_jobs_waiting{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"})",
+          "instant": false,
+          "legendFormat": "{{mode}} {{reason}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Waiting jobs",
+      "type": "timeseries"
     },
     {
-      "id": 21,
-      "type": "row",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Jobs blocked now, split by writers, readers, deletion disabled, retry backoff, or coordinate-only. The count is rebuilt from the journal.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 76
+      },
+      "id": 61,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_jobs_waiting{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"})",
+          "instant": false,
+          "legendFormat": "{{mode}} {{reason}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Waiting jobs",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 83
+      },
+      "id": 97,
       "title": "Backlog and routing",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 53,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
+      "type": "row"
     },
     {
-      "id": 22,
-      "type": "stat",
-      "title": "Cold routing frontier",
-      "description": "Exclusive boundary, not an Influx deletion watermark.",
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 54,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_routing_frontier_timestamp_seconds{job=~\"$job\",instance=~\"$instance\"} * 1000",
-          "legendFormat": "{{job}} / {{instance}}",
-          "range": false,
-          "instant": true
-        }
-      ],
+      "description": "Late corrections accepted into the inbox and not yet finished. This is not a count of late points still stored in Influx.",
       "fieldConfig": {
         "defaults": {
-          "unit": "dateTimeAsIso",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
           },
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Unknown",
-                  "color": "gray"
-                }
-              }
-            }
-          ]
+          "unit": "short"
         },
         "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto"
-      }
-    },
-    {
-      "id": 23,
-      "type": "timeseries",
-      "title": "Retention-adjusted routing lag",
-      "description": "Routing lag beyond configured hot retention, not deletion lag. Day boundaries add up to one day of scheduling granularity.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
       },
       "gridPos": {
-        "x": 12,
-        "y": 54,
+        "h": 7,
         "w": 12,
-        "h": 7
+        "x": 0,
+        "y": 84
       },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_lag_seconds{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "{{job}} / {{instance}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
       "id": 24,
-      "type": "timeseries",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_late_pending{job=\"beehive-hot-to-cold-loader\"})",
+          "instant": false,
+          "legendFormat": "{{job}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
       "title": "Pending late records",
-      "description": "Pending late records",
+      "type": "timeseries"
+    },
+    {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 61,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_late_pending{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "{{job}} / {{instance}}",
-          "range": true,
-          "instant": false
-        }
-      ],
+      "description": "How far the frontier sits behind the hot-retention deadline. Zero means it is inside that window. Scheduling by whole UTC days can add up to one day. This is not deletion lag.",
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "color": {
+            "mode": "thresholds",
+            "seriesBy": "last"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 27,
+            "gradientMode": "scheme",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "dashed+area"
+            }
+          },
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 25,
-      "type": "timeseries",
-      "title": "Oldest pending late record age",
-      "description": "Oldest pending late record age",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 61,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_late_oldest_age_seconds{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "{{job}} / {{instance}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
+                "value": 0
+              },
               {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 26,
-      "type": "timeseries",
-      "title": "Quarantine records",
-      "description": "Population retained for investigation; not a count of newly quarantined events.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 68,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_quarantined{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "{{job}} / {{instance}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
+                "color": "#EAB839",
+                "value": 32
+              },
               {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 27,
-      "type": "row",
-      "title": "Stage performance",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 75,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
-    },
-    {
-      "id": 28,
-      "type": "timeseries",
-      "title": "Average observed attempt duration",
-      "description": "Process-local observed wall time; no value when no finished attempts.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 76,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by(job,instance,mode,stage) (rate(hot_to_cold_step_duration_seconds_sum{job=~\"$job\",instance=~\"$instance\",mode=~\"$mode\"}[$__rate_interval])) / (sum by(job,instance,mode,stage) (rate(hot_to_cold_step_duration_seconds_count{job=~\"$job\",instance=~\"$instance\",mode=~\"$mode\"}[$__rate_interval])) > 0)",
-          "legendFormat": "{{instance}} {{mode}} {{stage}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 29,
-      "type": "timeseries",
-      "title": "Attempt samples in selected window",
-      "description": "Use counts to assess sparse-stage duration statistics.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 76,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by(job,instance,mode,stage) (increase(hot_to_cold_step_attempts_total{job=~\"$job\",instance=~\"$instance\",mode=~\"$mode\"}[$__range]))",
-          "legendFormat": "{{instance}} {{mode}} {{stage}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 30,
-      "type": "timeseries",
-      "title": "Observed attempt duration p95",
-      "description": "Bucket approximation; sparse samples do not establish a reliable tail percentile.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 83,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "histogram_quantile(0.95,sum by(job,instance,mode,stage,le) (rate(hot_to_cold_step_duration_seconds_bucket{job=~\"$job\",instance=~\"$instance\",mode=~\"$mode\"}[$__rate_interval])))",
-          "legendFormat": "{{instance}} {{mode}} {{stage}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 31,
-      "type": "row",
-      "title": "Safe deletion and coordination",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 90,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
-    },
-    {
-      "id": 32,
-      "type": "timeseries",
-      "title": "Pending hot deletions",
-      "description": "May be intentional while deletion is disabled or readers are draining.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 91,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_deletions_pending{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "{{job}} / {{instance}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 33,
-      "type": "timeseries",
-      "title": "Writer permits and expired rows",
-      "description": "Protecting permits include expiry drain grace. Expired rows no longer block archival; broker redelivery recovers unacknowledged writes.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 91,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_writers{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "protecting / {{job}} / {{instance}}",
-          "range": true,
-          "instant": false
-        },
-        {
-          "refId": "B",
-          "expr": "hot_to_cold_writers_expired{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "expired / {{job}} / {{instance}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 34,
-      "type": "timeseries",
-      "title": "Reader leases including grace",
-      "description": "Active reader leases and expiry grace still blocking deletion.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 98,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_readers{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "{{job}} / {{instance}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 35,
-      "type": "timeseries",
-      "title": "Expired unreleased reader rows",
-      "description": "Diagnostic rows past expiry/grace; they no longer block deletion.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 98,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "hot_to_cold_readers_expired{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "{{job}} / {{instance}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 36,
-      "type": "timeseries",
-      "title": "Profile files removed",
-      "description": "Profile files removed",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 105,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "increase(hot_to_cold_profile_cleanup_files_total{job=~\"$job\",instance=~\"$instance\"}[$__range])",
-          "legendFormat": "{{job}} / {{instance}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 37,
-      "type": "timeseries",
-      "title": "Profile maintenance errors",
-      "description": "Profile maintenance errors",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 105,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "increase(hot_to_cold_profile_cleanup_errors_total{job=~\"$job\",instance=~\"$instance\"}[$__range])",
-          "legendFormat": "{{job}} / {{instance}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 38,
-      "type": "stat",
-      "title": "Last successful profile maintenance",
-      "description": "Last successful profile maintenance",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 112,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "(hot_to_cold_profile_cleanup_last_success_timestamp_seconds{job=~\"$job\",instance=~\"$instance\"} > 0) * 1000",
-          "legendFormat": "{{job}} / {{instance}}",
-          "range": false,
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "dateTimeAsIso",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
+                "color": "red",
+                "value": 62
               }
             ]
           },
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Unknown",
-                  "color": "gray"
-                }
-              }
-            }
-          ]
+          "unit": "d"
         },
         "overrides": []
       },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 84
+      },
+      "id": 23,
       "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max without(instance) (hot_to_cold_lag_seconds{job=\"beehive-hot-to-cold-loader\"}) / 86400",
+          "instant": false,
+          "legendFormat": "{{job}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Retention-adjusted routing lag",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Records held for investigation. This is the current population, not the number quarantined during the selected time range.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 91
+      },
+      "id": 26,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_quarantined{job=\"beehive-hot-to-cold-loader\"})",
+          "instant": false,
+          "legendFormat": "{{job}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Quarantine records",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Age of the oldest unfinished late-inbox record. Zero means the inbox has nothing pending.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 91
+      },
+      "id": 25,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_late_oldest_age_seconds{job=\"beehive-hot-to-cold-loader\"})",
+          "instant": false,
+          "legendFormat": "{{job}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Oldest pending late record age",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 98
+      },
+      "id": 98,
+      "title": "Stage performance",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Mean wall time of stage attempts that finished in this window. No finished attempts means no value. The samples reset when the process restarts.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#ad46ff",
+            "mode": "thresholds"
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 16,
+        "x": 0,
+        "y": 99
+      },
+      "id": 63,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -1889,473 +2702,2344 @@
           "fields": "",
           "values": false
         },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum by(job,mode,stage) (rate(hot_to_cold_step_duration_seconds_sum{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"}[$__rate_interval])) / (sum by(job,mode,stage) (rate(hot_to_cold_step_duration_seconds_count{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"}[$__rate_interval])))",
+          "instant": false,
+          "legendFormat": "{{mode}} {{stage}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Average observed attempt duration",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Mean wall time of finished attempts per stage in the selected window. The slices add up to the typical executing time through those steps, not calendar time of one job and not ordinary waits. Mode filter applies. No finished attempts means no slice. Samples reset when the process restarts.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#73BF69",
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 16,
+        "y": 99
+      },
+      "id": 92,
+      "options": {
+        "displayLabels": [
+          "value"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "values": [
+            "percent"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by(stage) (increase(hot_to_cold_step_duration_seconds_sum{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"}[$__range])) / (sum by(stage) (increase(hot_to_cold_step_duration_seconds_count{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"}[$__range])) > 0)",
+          "instant": true,
+          "legendFormat": "{{stage}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Average duration by stage",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "95th percentile of finished attempt wall time, estimated from histogram buckets. A small sample count does not establish a reliable tail.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 16,
+        "x": 0,
+        "y": 106
+      },
+      "id": 68,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95,sum by(job,mode,stage,le) (rate(hot_to_cold_step_duration_seconds_bucket{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"}[$__rate_interval])))",
+          "instant": false,
+          "legendFormat": "{{mode}} {{stage}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Observed attempt duration p95",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "95th percentile of finished attempt wall time per stage in the selected window, estimated from histogram buckets. The slices add up to the sum of per-stage p95s, not the p95 of one job's calendar time, and not ordinary waits. A small sample count does not establish a reliable tail. Mode filter applies. Samples reset when the process restarts.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#73BF69",
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 8,
+        "x": 16,
+        "y": 109
+      },
+      "id": 93,
+      "options": {
+        "displayLabels": [
+          "value"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "values": [
+            "percent"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "histogram_quantile(0.95, sum by(stage,le) (increase(hot_to_cold_step_duration_seconds_bucket{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"}[$__range])))",
+          "instant": true,
+          "legendFormat": "{{stage}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "p95 duration by stage",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Stage attempts that finished in this window. Use this count before trusting the average or p95 of a sparse stage.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 16,
+        "x": 0,
+        "y": 113
+      },
+      "id": 29,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by(job,mode,stage) (increase(hot_to_cold_step_attempts_total{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"}[$__range]))",
+          "instant": false,
+          "legendFormat": "{{mode}} {{stage}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Attempt samples in selected window",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 120
+      },
+      "id": 99,
+      "title": "Safe deletion and coordination",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Archive jobs routed for hot deletion, or already deleting. A non-zero value is expected while deletion is off or readers are still draining.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 121
+      },
+      "id": 32,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_deletions_pending{job=\"beehive-hot-to-cold-loader\"})",
+          "instant": false,
+          "legendFormat": "{{job}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Pending hot deletions",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Active writer permits, including the one-minute drain after expiry, still block archival. Expired rows no longer block it. Unacknowledged broker deliveries are recovered by redelivery.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 12,
+        "x": 12,
+        "y": 121
+      },
+      "id": 33,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max without(instance) (hot_to_cold_writers{job=\"beehive-hot-to-cold-loader\"})",
+          "instant": false,
+          "legendFormat": "protecting",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max without(instance) (hot_to_cold_writers_expired{job=\"beehive-hot-to-cold-loader\"})",
+          "instant": false,
+          "legendFormat": "expired",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Writer permits and expired rows",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Read grants that still block hot deletion, including the one-minute drain after expiry.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 128
+      },
+      "id": 34,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_readers{job=\"beehive-hot-to-cold-loader\"})",
+          "instant": false,
+          "legendFormat": "{{job}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Reader leases including grace",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Time of the last profile cleanup that succeeded. Hidden until the first success.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "dateTimeAsLocal"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 135
+      },
+      "id": 38,
+      "options": {
         "colorMode": "value",
         "graphMode": "none",
-        "textMode": "auto"
-      }
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "(max without(instance) (hot_to_cold_profile_cleanup_last_success_timestamp_seconds{job=\"beehive-hot-to-cold-loader\"}) > 0) * 1000",
+          "instant": true,
+          "legendFormat": "{{job}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Last successful profile maintenance",
+      "type": "stat"
     },
     {
-      "id": 39,
-      "type": "row",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Read grants kept for diagnosis after expiry and the drain grace. They no longer block deletion.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 135
+      },
+      "id": 35,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "enableFacetedFilter": false,
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_readers_expired{job=\"beehive-hot-to-cold-loader\"})",
+          "instant": false,
+          "legendFormat": "{{job}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Expired unreleased reader rows",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Performance-profile files deleted by retention in this time range. Journals, catalogs, receipts, and verification evidence stay. The counter resets on restart.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 142
+      },
+      "id": 36,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum without(instance) (increase(hot_to_cold_profile_cleanup_files_total{job=\"beehive-hot-to-cold-loader\"}[$__range]))",
+          "instant": false,
+          "legendFormat": "{{job}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Profile files removed",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Profile-cleanup passes that failed in this time range. A failure does not change a job outcome and does not allow hot deletion.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 142
+      },
+      "id": 37,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum without(instance) (increase(hot_to_cold_profile_cleanup_errors_total{job=\"beehive-hot-to-cold-loader\"}[$__range]))",
+          "instant": false,
+          "legendFormat": "{{job}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Profile maintenance errors",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 149
+      },
+      "id": 100,
       "title": "Go process resources",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 119,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
+      "type": "row"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "CPU time per second for this Go process. DuckDB, influxd, and the container total are not included.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "cores"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 150
+      },
       "id": 40,
-      "type": "timeseries",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "rate(process_cpu_seconds_total{job=\"beehive-hot-to-cold-loader\",instance=~\"$instance\"}[$__rate_interval])",
+          "instant": false,
+          "legendFormat": "{{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
       "title": "Go process CPU",
-      "description": "Go process CPU, not DuckDB children or container totals.",
+      "type": "timeseries"
+    },
+    {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 120,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "rate(process_cpu_seconds_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])",
-          "legendFormat": "{{job}} / {{instance}}",
-          "range": true,
-          "instant": false
-        }
-      ],
+      "description": "Resident memory of this Go process. DuckDB and influxd memory are outside this value.",
       "fieldConfig": {
         "defaults": {
-          "unit": "cores",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
-          }
+          },
+          "unit": "bytes"
         },
         "overrides": []
       },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 150
+      },
       "id": 41,
-      "type": "timeseries",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "process_resident_memory_bytes{job=\"beehive-hot-to-cold-loader\",instance=~\"$instance\"}",
+          "instant": false,
+          "legendFormat": "{{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
       "title": "Go process resident memory",
-      "description": "Go process RSS only; child/container memory requires separate exporters/profiling.",
+      "type": "timeseries"
+    },
+    {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 12,
-        "y": 120,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "process_resident_memory_bytes{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "{{job}} / {{instance}}",
-          "range": true,
-          "instant": false
-        }
-      ],
+      "description": "Goroutines in this Go process. A count that rises and stays high can mean work that did not return. It is not the container thread count.",
       "fieldConfig": {
         "defaults": {
-          "unit": "bytes",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
-          }
+          },
+          "unit": "short"
         },
         "overrides": []
       },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 42,
-      "type": "timeseries",
-      "title": "Goroutines",
-      "description": "Goroutines",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
       "gridPos": {
+        "h": 9,
+        "w": 12,
         "x": 0,
-        "y": 127,
-        "w": 12,
-        "h": 7
+        "y": 159
       },
+      "id": 42,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
       "targets": [
         {
-          "refId": "A",
-          "expr": "go_goroutines{job=~\"$job\",instance=~\"$instance\"}",
-          "legendFormat": "{{job}} / {{instance}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "go_goroutines{job=\"beehive-hot-to-cold-loader\",instance=~\"$instance\"}",
+          "instant": false,
+          "legendFormat": "{{instance}}",
           "range": true,
-          "instant": false
+          "refId": "A"
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "Unknown",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
+      "title": "Goroutines",
+      "type": "timeseries"
     },
     {
-      "id": 43,
-      "type": "timeseries",
-      "title": "Average Go garbage collection pause",
-      "description": "Average Go garbage collection pause",
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 12,
-        "y": 127,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "rate(go_gc_duration_seconds_sum{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]) / (rate(go_gc_duration_seconds_count{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]) > 0)",
-          "legendFormat": "{{job}} / {{instance}}",
-          "range": true,
-          "instant": false
-        }
-      ],
+      "description": "Mean Go garbage-collection pause for this process. It is not query latency and not DuckDB time. No completed collections means no value.",
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
           "noValue": "Unknown",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
-          }
+          },
+          "unit": "s"
         },
         "overrides": []
       },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 159
+      },
+      "id": 43,
       "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
         "legend": {
+          "calcs": [],
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
         }
-      }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "rate(go_gc_duration_seconds_sum{job=\"beehive-hot-to-cold-loader\",instance=~\"$instance\"}[$__rate_interval]) / (rate(go_gc_duration_seconds_count{job=\"beehive-hot-to-cold-loader\",instance=~\"$instance\"}[$__rate_interval]) > 0)",
+          "instant": false,
+          "legendFormat": "{{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Average Go garbage collection pause",
+      "type": "timeseries"
     },
     {
-      "id": 44,
-      "type": "row",
-      "title": "API reader lease renewal (separate API targets)",
       "collapsed": false,
       "gridPos": {
-        "x": 0,
-        "y": 134,
+        "h": 1,
         "w": 24,
-        "h": 1
+        "x": 0,
+        "y": 168
       },
-      "panels": []
+      "id": 101,
+      "title": "API reader lease renewal (separate API targets)",
+      "type": "row"
     },
     {
-      "id": 45,
-      "type": "timeseries",
-      "title": "API target availability",
-      "description": "API targets are selected separately from loader targets. Missing API renewal series require the matching API build and its own scrape job.",
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 135,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "up{job=~\"$api_job\",instance=~\"$api_instance\"}",
-          "legendFormat": "{{job}} / {{instance}} {{outcome}}",
-          "range": true
-        }
-      ],
+      "description": "1 means Prometheus scraped a beehive-data-api target, including a canary if present. API job and instance filters apply. Renewal series on the other panels exist only on an API build that emits them.",
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "noValue": "Unknown"
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "Down"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "Up"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "#808080",
+                  "index": 2,
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
         },
         "overrides": []
       },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 46,
-      "type": "timeseries",
-      "title": "API renewal outcomes",
-      "description": "API process-local attempts; network/validation errors and cancellation are distinct from accepted renewals.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
       "gridPos": {
-        "x": 12,
-        "y": 135,
+        "h": 7,
         "w": 12,
-        "h": 7
+        "x": 0,
+        "y": 169
       },
+      "id": 45,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
       "targets": [
         {
-          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "up{job=~\"$api_job\",instance=~\"$api_instance\",job=~\".*beehive-data-api.*\"} or up{job=~\"$api_job\",instance=~\"$api_instance\",service=~\"beehive-data-api(-canary)?\"}",
+          "legendFormat": "{{job}} / {{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "API target availability",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Rate of read-lease renewals finished by the API: success, error, or canceled. A failure can happen before the coordinator accepts the renewal. The counter resets when the API restarts.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 169
+      },
+      "id": 46,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "expr": "rate(hot_to_cold_read_renewals_total{job=~\"$api_job\",instance=~\"$api_instance\"}[$__rate_interval])",
           "legendFormat": "{{job}} / {{instance}} {{outcome}}",
-          "range": true
+          "range": true,
+          "refId": "A"
         }
       ],
+      "title": "API renewal outcomes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Mean time the API spent on a background read-lease renewal. This is not query duration. No completed renewals means no value.",
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
-          "noValue": "Unknown"
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
         },
         "overrides": []
       },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 47,
-      "type": "timeseries",
-      "title": "Average API renewal latency",
-      "description": "Background renewal latency, not data-query duration or total response latency. No completed attempts means no average.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
       "gridPos": {
-        "x": 0,
-        "y": 142,
+        "h": 7,
         "w": 12,
-        "h": 7
+        "x": 0,
+        "y": 176
       },
+      "id": 47,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
       "targets": [
         {
-          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
           "expr": "rate(hot_to_cold_read_renewal_duration_seconds_sum{job=~\"$api_job\",instance=~\"$api_instance\"}[$__rate_interval]) / (rate(hot_to_cold_read_renewal_duration_seconds_count{job=~\"$api_job\",instance=~\"$api_instance\"}[$__rate_interval]) > 0)",
           "legendFormat": "{{job}} / {{instance}} {{outcome}}",
-          "range": true
+          "range": true,
+          "refId": "A"
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "noValue": "Unknown"
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        }
-      }
+      "title": "Average API renewal latency",
+      "type": "timeseries"
     },
     {
-      "id": 48,
-      "type": "timeseries",
-      "title": "API renewals observed in selected window",
-      "description": "Counts observed within this time range after scraping begins; counters reset on API restart.",
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "gridPos": {
-        "x": 12,
-        "y": 142,
-        "w": 12,
-        "h": 7
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "increase(hot_to_cold_read_renewals_total{job=~\"$api_job\",instance=~\"$api_instance\"}[$__range])",
-          "legendFormat": "{{job}} / {{instance}} {{outcome}}",
-          "range": true
-        }
-      ],
+      "description": "Renewals the API finished in this time range, by outcome. Counts begin at the first scrape and reset when the API restarts.",
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
-          "noValue": "Unknown"
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
         },
         "overrides": []
       },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 176
+      },
+      "id": 48,
       "options": {
-        "tooltip": {
-          "mode": "multi"
-        },
         "legend": {
+          "calcs": [],
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
         }
-      }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "increase(hot_to_cold_read_renewals_total{job=~\"$api_job\",instance=~\"$api_instance\"}[$__range])",
+          "legendFormat": "{{job}} / {{instance}} {{outcome}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "API renewals observed in selected window",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 183
+      },
+      "id": 102,
+      "title": "State Backups",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Unix time of the last verified off-node state backup. Zero before the first success. A missing scrape is unknown, not proof that a recent backup exists.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "dateTimeAsLocal"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 0,
+        "y": 184
+      },
+      "id": 81,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "(max without(instance) (hot_to_cold_backup_last_success_timestamp_seconds{job=\"beehive-hot-to-cold-loader\"}) > 0) * 1000",
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Last verified state backup",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "1 while new write, late, and quarantine admission is closed for snapshot capture. Existing readers and renewals continue. Open, Closed, and Unknown are the timeline states. An overlong closed barrier is an alert condition.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "green",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "fillOpacity": 70,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineWidth": 0,
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "index": 2,
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            },
+            {
+              "options": {
+                "0": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "Open"
+                },
+                "1": {
+                  "color": "orange",
+                  "index": 1,
+                  "text": "Closed"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "bool"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 8,
+        "y": 184
+      },
+      "id": 58,
+      "options": {
+        "alignValue": "left",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "mergeValues": true,
+        "rowHeight": 0.9,
+        "showValue": "auto",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_backup_admission_closed{job=\"beehive-hot-to-cold-loader\"})",
+          "format": "time_series",
+          "legendFormat": "admission",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "State backup admission barrier",
+      "type": "state-timeline"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Wall time of each phase from the last completed state backup: wait, drain, capture, and upload. Values refresh when a backup finishes; they are not live progress.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#73BF69",
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 16,
+        "y": 184
+      },
+      "id": 69,
+      "options": {
+        "displayLabels": [
+          "value"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "values": [
+            "percent"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_backup_last_phase_seconds{job=\"beehive-hot-to-cold-loader\"})",
+          "legendFormat": "{{phase}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "State backup phase duration",
+      "type": "piechart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 194
+      },
+      "id": 103,
+      "title": "Docs",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Version and VCS revision compiled into this process. A binary built without VCS metadata shows unknown. This is not the image digest.",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "noValue": "Unknown",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 195
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max without(instance) (hot_to_cold_build_info{job=\"beehive-hot-to-cold-loader\"})",
+          "instant": true,
+          "legendFormat": "{{version}} / {{revision}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Build revision",
+      "type": "stat"
+    },
+    {
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 0,
+        "y": 199
+      },
+      "id": 50,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "[beehive-hot-to-cold-loader](https://github.com/waggle-sensor/beehive-hot-to-cold-loader) on GitHub. Metric names and alert rules are in `docs/metrics.md` in that repository.\n\nThe Prometheus datasource is chosen when this dashboard is imported. Loader panels always use job `beehive-hot-to-cold-loader`. **Instance** filters only the Go process resources row. Every other loader panel aggregates across instances so journal and outcome series are not split per pod.\n\n**Mode** applies only to panels whose metric has a mode label. `archive` is a day moving from Influx to the lakehouse. `late` is a correction for a day already behind the frontier.\n\nThe Work in progress node graph shows durable next-step states; two edges leave `ROUTED` — archive deletion versus late completion.\n\n**API job** and **API instance** apply only to the API reader lease renewal row. Those series come from the data API scrape, not from the coordinator.\n\nA missing sample is shown as Unknown. That is not a zero backlog, and it is not proof that the service is down.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "13.3.0",
+      "title": "How to read this dashboard",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 12,
+        "y": 199
+      },
+      "id": 51,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "Coordinate-only mode serves grants and receipts. It does not create archive jobs, late jobs, or deletions. The cold routing frontier is the exclusive boundary between cold and hot queries. It is not the time Influx has deleted. Retention lag measures how far that frontier sits behind the hot-retention deadline.\n\nGo CPU, resident memory, goroutines, and garbage-collection time are this process only. DuckDB and influxd are outside those values.\n\nStage attempts, scheduler errors, and profile cleanup are process-local counters. They reset when the process restarts. Milestone counts include only events scraped inside the selected time range.\n\nPending late records are unfinished inbox corrections, not late points still stored in Influx. Profile cleanup removes performance profiles only. Journals, catalogs, receipts, and verification evidence stay.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "13.3.0",
+      "title": "What the numbers leave out",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 16,
+        "w": 24,
+        "x": 0,
+        "y": 211
+      },
+      "id": 52,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "Archive jobs advance oldest-first through durable stages. A state names the **next** work to perform, not a worker that is running it now. Only complete UTC days ending at or before `now - hot retention` are eligible. Failed work stays recoverable. `ROUTED` means cold data is queryable; it does not mean the hot copy has been deleted. Late jobs finish at `ROUTED` without hot deletion. Full detail: [docs/architecture.md](https://github.com/waggle-sensor/beehive-hot-to-cold-loader/blob/main/docs/architecture.md).\n\n| State | Work before advancing |\n| --- | --- |\n| `FENCING` | Wait for writer permits covering the day to release or expire plus drain grace. New writes to the fenced day become late receipts. |\n| `EXPORTING` | Export the source engine into primitive local Parquet, retaining replay sequence. |\n| `EXPORTED` | Normalize overwritten identities and prove equality against an independent Influx query. |\n| `RECONCILED` | Materialize expected rows, pack the lakehouse layout, and verify the build. |\n| `BUILT` | Publish files and commit an Iceberg snapshot; recognize an already committed job on retry. |\n| `COMMITTED` | Read back remote objects and perform fresh exact verification. |\n| `REMOTE_VERIFIED` | Activate the snapshot and advance contiguous coverage atomically in the control journal. |\n| `ROUTED` | For an archive job, wait for deletion enablement and old readers. Late jobs finish here without hot deletion. |\n| `DELETING` | Reverify the published data on every destructive attempt, then request the hot interval deletion. |\n| `DELETE_REQUESTED` | Query the interval to confirm it is empty; retry through `DELETING` if needed. |\n| `COMPLETE` | Persist completion and clean eligible local scratch. |",
+        "mode": "markdown"
+      },
+      "pluginVersion": "13.3.0",
+      "title": "Archive lifecycle states",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 227
+      },
+      "id": 56,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "Online state backups snapshot `control.db`, `catalog.db`, and matching recovery files without scaling or stopping the service. New write, late, and quarantine admission closes briefly for capture; existing readers and renewals stay available. Compression and remote upload continue after admission reopens. Only a verified off-node backup counts as success. Full procedure: [docs/backup-recovery.md](https://github.com/waggle-sensor/beehive-hot-to-cold-loader/blob/main/docs/backup-recovery.md).\n\n| Phase | Meaning |\n| --- | --- |\n| `waiting_boundary` | Accepted; waiting for the scheduler to yield before capture |\n| `draining_writers` | Admission closed; admitted writers drain |\n| `copying` | SQLite online snapshots and recovery files into scratch |\n| `uploading` | Admission open; compress, publish, and read back |\n| `complete` | Verified off-node backup |\n| `failed` | No verified backup; admission is open |\n\nService overview shows last verified backup age (green within a day, orange after one day, red after two), whether admission is closed, and the current backup phase. The State Backups row shows last verified success time, charts admission over time, and shows last completed phase durations. Alerts cover backup failures, no verified backup within 36 hours when configured, an overlong admission barrier, and retention cleanup errors. A failed scrape is unknown, not a successful backup. Restore after state loss is an offline disaster operation: stop the coordinator and clients, restore at the original state path, and approve only after publication checks. Backups are not encrypted and are not a backup of Secrets or the cold lakehouse itself.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "13.3.0",
+      "title": "State backups",
+      "type": "text"
     }
+  ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 42,
+  "tags": [
+    "archival"
   ],
   "templating": {
     "list": [
       {
-        "name": "datasource",
-        "label": "Prometheus",
-        "type": "datasource",
-        "query": "prometheus",
-        "refresh": 1
-      },
-      {
-        "name": "job",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${datasource}"
-        },
-        "query": "label_values(hot_to_cold_build_info, job)",
-        "refresh": 1,
-        "multi": true,
-        "includeAll": true,
-        "allValue": ".*"
-      },
-      {
-        "name": "instance",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${datasource}"
-        },
-        "query": "label_values(hot_to_cold_build_info{job=~\"$job\"}, instance)",
-        "refresh": 1,
-        "multi": true,
-        "includeAll": true,
-        "allValue": ".*"
-      },
-      {
-        "name": "mode",
-        "type": "custom",
-        "query": "archive,late",
-        "multi": true,
-        "includeAll": true,
         "allValue": ".*",
+        "allowCustomValue": true,
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "includeAll": true,
+        "multi": true,
+        "name": "instance",
+        "options": [],
+        "query": "label_values(hot_to_cold_build_info{job=\"beehive-hot-to-cold-loader\"}, instance)",
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "allowCustomValue": true,
         "current": {
-          "text": "All",
-          "value": "$__all"
-        }
+          "text": [
+            "$__all"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "includeAll": true,
+        "multi": true,
+        "name": "mode",
+        "options": [
+          {
+            "selected": false,
+            "text": "archive",
+            "value": "archive"
+          },
+          {
+            "selected": false,
+            "text": "late",
+            "value": "late"
+          }
+        ],
+        "query": "archive,late",
+        "type": "custom",
+        "valuesFormat": "csv"
       },
       {
-        "name": "api_job",
+        "allValue": ".*",
+        "allowCustomValue": true,
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "includeAll": true,
         "label": "API job",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "${datasource}"
-        },
-        "query": "label_values(hot_to_cold_read_renewals_total, job)",
-        "refresh": 1,
         "multi": true,
-        "includeAll": true,
-        "allValue": ".*"
+        "name": "api_job",
+        "options": [],
+        "query": "label_values(up{job=~\".*beehive-data-api.*\"}, job)",
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
       },
       {
-        "name": "api_instance",
-        "label": "API instance",
-        "type": "query",
+        "allValue": ".*",
+        "allowCustomValue": true,
+        "current": {},
         "datasource": {
           "type": "prometheus",
-          "uid": "${datasource}"
+          "uid": "${DS_PROMETHEUS}"
         },
-        "query": "label_values(hot_to_cold_read_renewals_total{job=~\"$api_job\"}, instance)",
-        "refresh": 1,
-        "multi": true,
         "includeAll": true,
-        "allValue": ".*"
+        "label": "API instance",
+        "multi": true,
+        "name": "api_instance",
+        "options": [],
+        "query": "label_values(up{job=~\"$api_job\",job=~\".*beehive-data-api.*\"}, instance)",
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
       }
     ]
-  }
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
+  "timezone": "browser",
+  "title": "Beehive hot-to-cold loader",
+  "uid": "beehive-hot-to-cold-loader",
+  "version": 24,
+  "weekStart": ""
 }

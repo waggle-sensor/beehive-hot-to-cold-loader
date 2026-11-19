@@ -4,7 +4,7 @@
 
 ## Responsibilities
 
-The service archives one Influx bucket into the managed Iceberg table `sage.obs` on Pelican. It owns the archival scheduler, writer fences, late-data inbox, read grants, local SQL catalog, publication, verification, and guarded deletion. It does not serve measurement queries; `beehive-data-api` does that.
+The service archives one Influx bucket into the managed Iceberg table `sage.observations` (default; namespace and table name are configurable) on Pelican. It owns the archival scheduler, writer fences, late-data inbox, read grants, local SQL catalog, publication, verification, and guarded deletion. It does not serve measurement queries; `beehive-data-api` does that.
 
 ```mermaid
 flowchart LR
@@ -12,14 +12,35 @@ flowchart LR
     Loader -->|permitted hot writes| Influx[InfluxDB]
     Loader -->|permits and late receipts| Archive[beehive-hot-to-cold-loader]
     Influx -->|engine export and independent query| Archive
-    Archive -->|verified Iceberg publication| Pelican[Pelican warehouse]
+    Archive -->|verified Iceberg publication| Pelican[Pelican lakehouse]
     API[beehive-data-api] -->|pinned renewable read view| Archive
     API -->|hot range| Influx
     API -->|cold snapshot| Pelican
     Archive -->|guarded interval deletion| Influx
 ```
 
-The Influx loader never writes the cold warehouse. It hands late measurements to this service durably. The API acquires a view containing coverage start, frontier, warehouse, exact Iceberg metadata, generation, and lease expiry. The frontier is an exclusive border: earlier covered data is cold; data from the border onward is hot. Requests before declared coverage are rejected.
+The Influx loader never writes the cold lakehouse. It hands late measurements to this service durably. The API acquires a view containing coverage start, frontier, lakehouse, exact Iceberg metadata, generation, and lease expiry. The frontier is an exclusive border: earlier covered data is cold; data from the border onward is hot. Requests before declared coverage are rejected.
+
+## HTTP API
+
+The process listens on one internal address (default `:10001`). It does not serve measurement queries. Coordination and status routes are authenticated POST with a JSON body; `/metrics` is the only public GET. Loader, reader, and admin tokens are distinct: a token for one role cannot call another role's routes. Bodies are limited to 16 MiB, require one JSON value, and reject unknown fields. Write, late, quarantine, read, and status requests must include the configured `bucket`. Backup create/status accept `{}` and do not require `bucket`. Field-level request/response detail is in [development](development.md); backup admission and recovery behavior are in [backup and recovery](backup-recovery.md).
+
+| Method | Route | Role | Purpose |
+| --- | --- | --- | --- |
+| POST | `/v1/writes/acquire` | Loader | Admit a writer permit for hot days |
+| POST | `/v1/writes/renew` | Loader | Extend a live writer permit |
+| POST | `/v1/writes/release` | Loader | Confirm successful completion of a live permit |
+| POST | `/v1/late` | Loader | Durably accept late corrections for fenced/cold days |
+| POST | `/v1/quarantine` | Loader | Retain rejected input for investigation |
+| POST | `/v1/reads/acquire` | Reader | Pin a renewable cold/hot routing view |
+| POST | `/v1/reads/renew` | Reader | Renew the same pinned view |
+| POST | `/v1/reads/release` | Reader | Release a read view |
+| POST | `/v1/status` | Admin | Aggregate control status |
+| POST | `/v1/backups/create` | Admin | Start one online state backup (`202`); concurrent create returns 409; incomplete config returns 503 |
+| POST | `/v1/backups/status` | Admin | Latest backup operation fields |
+| GET | `/metrics` | Public | Prometheus exposition; no token |
+
+During backup capture, new write, late, and quarantine admission can return 503 with `Retry-After: 30`. Existing writer renewals/releases and all read routes stay available.
 
 ## Archive lifecycle
 
@@ -30,7 +51,7 @@ Only complete UTC days ending at or before `now - hot retention` are eligible. T
 | `FENCING` | Wait for existing writer permits covering the day to release or expire plus drain grace. New writes to the fenced day become late receipts. |
 | `EXPORTING` | Export the source engine into primitive local Parquet, retaining replay sequence. |
 | `EXPORTED` | Normalize overwritten identities and prove equality against an independent Influx query. |
-| `RECONCILED` | Materialize expected rows, pack the warehouse layout, and verify the build. |
+| `RECONCILED` | Materialize expected rows, pack the lakehouse layout, and verify the build. |
 | `BUILT` | Publish files and commit an Iceberg snapshot; recognize an already committed job on retry. |
 | `COMMITTED` | Read back remote objects and perform fresh exact verification. |
 | `REMOTE_VERIFIED` | Activate the snapshot and advance contiguous coverage atomically in the control journal. |
@@ -49,12 +70,12 @@ An edge device can replay old timestamps after reconnecting. The Influx loader a
 
 A late job merges accepted records into the affected day's pinned cold snapshot and atomically replaces its files after verification. Matching identity is `(time, name, full tags)`; late corrections replace the value for that identity. Nanosecond instants and value kinds are retained. Older snapshots remain available to readers that already pinned them. Pending data before configured coverage requires an explicit backfill; it is not silently discarded.
 
-## Warehouse layout
+## Lakehouse layout
 
 | Property | Current policy |
 | --- | --- |
 | Catalog | Local SQLite SQL catalog in `catalog.db`; remote objects on Pelican |
-| Table | `sage.obs`, Iceberg format v3 |
+| Table | `sage.observations` by default; configurable namespace/table; Iceberg format v3 |
 | Partition | UTC `day(time)` |
 | File membership | Chronological batches of at most 10,000,000 rows per day |
 | Order inside a file | `plugin`, then `vsn`, then `time`, ascending with nulls last |
@@ -72,13 +93,13 @@ A large plugin occupies several row groups. Small plugins can share a file but h
 | `meta` (field ID 10) | Map of string to string for remaining tags |
 | `value` (field ID 11) | VARIANT preserving float/int/bool/string, with marked decimal encoding for uint64 |
 
-Local primitive staging is an internal representation with `time`, `name`, canonical `tags`, `kind`, textual `value`, and `seq`; it is not the published warehouse schema or an API response schema.
+Local primitive staging is an internal representation with `time`, `name`, canonical `tags`, `kind`, textual `value`, and `seq`; it is not the published lakehouse schema or an API response schema.
 
 ## Verification and persistence
 
 Verification checks full records and duplicate multiplicity using bounded, partitioned comparisons in both directions. Hashes route work; hashes and row counts alone never prove equality. Object hashes and recorded scope bind the proofs to published artifacts. Build checks reuse canonical shards privately within a build; reconciliation, remote verification, and pre-delete verification retain fresh proofs. A failed or incomplete proof blocks progression.
 
-`control.db` stores admission, read views, jobs, receipts, frontier, and durable outcome totals. `catalog.db` stores the Iceberg catalog for local operations, but user's can still hit Pelican directly to read our cold storage. Keep both and their associated files together through backup/recovery. One active coordinator owns   one state/catalog and warehouse; a process lock also survives in native children. There is no automatic remote object garbage collection or snapshot expiration.
+`control.db` stores admission, read views, jobs, receipts, frontier, and durable outcome totals. `catalog.db` stores the Iceberg catalog for local operations, but user's can still hit Pelican directly to read our cold storage. Keep both and their associated files together through backup/recovery. One active coordinator owns   one state/catalog and lakehouse; a process lock also survives in native children. There is no automatic remote object garbage collection or snapshot expiration.
 
 Reader leases renew without changing their pinned snapshot/frontier. Unrenewed leases stop protecting deletion after expiry plus a one-minute grace. Writer permits also renew and expire; an expired writer stops blocking archival after a one-minute drain grace. Broker deliveries remain unacknowledged on lease loss and must be replayed under fresh admission. See [operations](operations.md) for the availability tradeoff and explicit stopped-writer recovery procedure.
 

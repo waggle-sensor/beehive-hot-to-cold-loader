@@ -30,27 +30,27 @@ def bounds():
     return day.isoformat()+"T00:00:00Z",(day+timedelta(days=1)).isoformat()+"T00:00:00Z",(day+timedelta(days=2)).isoformat()+"T00:00:00Z"
 
 
-def auth(warehouse):
+def auth(lakehouse):
     import jwt
-    u=urlsplit(warehouse)
+    u=urlsplit(lakehouse)
     if (u.scheme!="https" or not u.netloc or u.query or u.fragment or u.username or u.password
-        or not re.fullmatch(r"/sage/cold-storage-[A-Za-z0-9_-]+/warehouse",u.path)):
-        raise ValueError("invalid read-only warehouse")
-    now=int(time.time());prefix=u.path.split("/")[2]
-    return jwt.encode(dict(sub="sage-capacity-reader",aud="ANY",ver="scitoken:2.0",scope="read:/"+prefix,
+        or not re.fullmatch(r"/sage/(?:cold|cold-test-[A-Za-z0-9_-]+)/lakehouse",u.path)):
+        raise ValueError("invalid read-only lakehouse")
+    now=int(time.time());prefix=u.path.removeprefix("/sage")
+    return jwt.encode(dict(sub="sage-capacity-reader",aud="ANY",ver="scitoken:2.0",scope="read:"+prefix,
         iss="https://sagecontinuum.org",iat=now-60,nbf=now-60,exp=now+int(os.environ["DAY_TIMEOUT"])+60,jti=uuid.uuid4().hex),
         Path(os.environ["PELICAN_KEY_PATH"]).read_bytes(),algorithm="ES256",headers={"kid":"3cfa"})
 
 
-def duck(sql, warehouses=()):
+def duck(sql, lakehouses=()):
     free=shutil.disk_usage(REPORTS).free
     if free<=8*(1<<30):raise RuntimeError('insufficient staging disk: 8 GiB reserve required')
     spill=min(16*(1<<30),free-8*(1<<30))
     setup="SET TimeZone='UTC';SET threads=2;SET memory_limit="+base.sqlquote(os.environ["NATIVE_MEMORY"])+";SET temp_directory='/reports/native-spill';SET max_temp_directory_size="+base.sqlquote(str(spill)+'B')+";LOAD httpfs;LOAD iceberg;"
     credentials=[]
-    for index,warehouse in enumerate(warehouses):
-        credential=auth(warehouse);credentials.append(credential)
-        setup+="CREATE SECRET read_"+str(index)+" (TYPE http,SCOPE "+base.sqlquote(warehouse)+",BEARER_TOKEN "+base.sqlquote(credential)+");"
+    for index,lakehouse in enumerate(lakehouses):
+        credential=auth(lakehouse);credentials.append(credential)
+        setup+="CREATE SECRET read_"+str(index)+" (TYPE http,SCOPE "+base.sqlquote(lakehouse)+",BEARER_TOKEN "+base.sqlquote(credential)+");"
     command=subprocess.run(["duckdb","-batch","-bail","-json"],input=setup+sql,text=True,capture_output=True,timeout=int(os.environ["DAY_TIMEOUT"]))
     if command.returncode:
         diagnostic=command.stderr
@@ -83,10 +83,10 @@ def source_canonical():
     return "SELECT time,name,tags,native_kind AS kind,value FROM read_parquet('/reports/source.parquet')"
 
 
-def canonical_equal(left,right,warehouses):
+def canonical_equal(left,right,lakehouses):
     """Hash routes records; exact two-way EXCEPT ALL proves equality per shard."""
     import pyarrow.parquet as pq
-    counts=duck('SELECT (SELECT count(*) FROM ('+left+')) AS a,(SELECT count(*) FROM ('+right+')) AS b;',warehouses)
+    counts=duck('SELECT (SELECT count(*) FROM ('+left+')) AS a,(SELECT count(*) FROM ('+right+')) AS b;',lakehouses)
     if len(counts)!=1 or set(counts[0])!={'a','b'}:raise AssertionError('missing comparison counts')
     a,b=counts[0]['a'],counts[0]['b']
     if a<0 or b<0 or a!=b:raise AssertionError('pinned original/full archived row counts differ')
@@ -124,7 +124,7 @@ def canonical_equal(left,right,warehouses):
             elif ac:
                 comparisons.append('WITH a AS ('+scan(af)+'),b AS ('+scan(bf)+") SELECT CASE WHEN count(*)=0 THEN true ELSE error('pinned original/full archived multiset differs') END AS equal FROM ((SELECT * FROM a EXCEPT ALL SELECT * FROM b) UNION ALL (SELECT * FROM b EXCEPT ALL SELECT * FROM a));")
     try:
-        stage(left,right,warehouses,0,a,b)
+        stage(left,right,lakehouses,0,a,b)
         result=duck(''.join(comparisons)+'SELECT true AS all_partitions_equal;')
         if result!=[{'all_partitions_equal':True}]:raise AssertionError('missing comparison completion result')
         return {'rows':a,'partitions':len(comparisons),'partition_row_limit':1000000,'exact_multiset_equal':True}
@@ -210,25 +210,25 @@ def strings():
 
 
 def source():
-    warehouse=os.environ["SOURCE_WAREHOUSE"]
-    if warehouse==os.environ["WAREHOUSE"]:raise ValueError("source must remain separate/read-only")
-    raw,_=base.call(warehouse+"/sage/obs/metadata/version-hint.text",headers={"Authorization":"Bearer "+auth(warehouse)})
+    lakehouse=os.environ["SOURCE_LAKEHOUSE"]
+    if lakehouse==os.environ["LAKEHOUSE"]:raise ValueError("source must remain separate/read-only")
+    raw,_=base.call(lakehouse+base.table_path()+"/metadata/version-hint.text",headers={"Authorization":"Bearer "+auth(lakehouse)})
     stem=raw.decode().strip()
     if not re.fullmatch(r"[A-Za-z0-9_-]+",stem):raise ValueError("unsafe source version hint")
-    metadata=warehouse+"/sage/obs/metadata/"+stem+".metadata.json"
+    metadata=lakehouse+base.table_path()+"/metadata/"+stem+".metadata.json"
     # Native type labels are calibrated against DuckDB itself, never guessed.
     cases=" ".join("WHEN variant_typeof(value)=variant_typeof("+literal+"::VARIANT) THEN "+base.sqlquote(kind)
         for literal,kind in (("0::DOUBLE","float"),("0::BIGINT","int"),("0::UBIGINT","uint"),("false","bool"),("''::VARCHAR","string")))
     projection="SELECT epoch_ns(time) AS time,name,to_json("+tag_expr()+")::VARCHAR AS tags,CASE "+cases+" ELSE error('unsupported VARIANT scalar; no conversion permitted') END AS kind,variant_typeof(value)::VARCHAR AS native_kind,to_json(value)::VARCHAR AS value FROM ("+day_scan(metadata)+")"
     pending=str(SOURCE_FILE)+".pending"
-    duck("COPY ("+projection+") TO "+base.sqlquote(pending)+" (FORMAT parquet,COMPRESSION zstd,ROW_GROUP_SIZE 122880);",[warehouse])
+    duck("COPY ("+projection+") TO "+base.sqlquote(pending)+" (FORMAT parquet,COMPRESSION zstd,ROW_GROUP_SIZE 122880);",[lakehouse])
     Path(pending).replace(SOURCE_FILE)
     stats=duck("SELECT count(*) AS rows,min(time) AS min_time,max(time) AS max_time,sum(octet_length(encode(to_json(struct_pack(time:=time,name:=name,tags:=tags::JSON,kind:=kind,value:=CASE WHEN kind='string' THEN json_extract_string(value,'$') ELSE value END,seq:=999999999999))::VARCHAR))+1)::BIGINT AS estimated_raw_ndjson_bytes FROM read_parquet('/reports/source.parquet');")[0]
     if stats["rows"]<1:raise AssertionError("source day is empty")
     kinds=duck("SELECT kind,count(*) AS rows FROM read_parquet('/reports/source.parquet') GROUP BY kind;")
     free=shutil.disk_usage(REPORTS).free
     reserve=max(64*(1<<30),int(os.environ["MIN_FREE_GIB"])*(1<<30),32*SOURCE_FILE.stat().st_size+32*(1<<30))
-    result={"warehouse":warehouse,"metadata":metadata,"day":os.environ["SOURCE_DAY"],"stats":stats,"kinds":kinds,
+    result={"lakehouse":lakehouse,"metadata":metadata,"day":os.environ["SOURCE_DAY"],"stats":stats,"kinds":kinds,
         "expected_rows":int(os.environ["EXPECTED_ROWS"]),"primitive_parquet_bytes":SOURCE_FILE.stat().st_size,"free_bytes":free,"required_free_bytes_estimate":reserve,
         "disk_estimate_scope":"compressed staging heuristic: max(64 GiB, configured floor, 32 reference Parquet copies + 32 GiB); not a proven bound"}
     base.save("source-pinned",result)
@@ -438,13 +438,13 @@ def routed():
 def verify():
     value=job()
     if not value or value['state']!='ROUTED':raise AssertionError("full day has not routed")
-    target=os.environ["WAREHOUSE"]
+    target=os.environ["LAKEHOUSE"]
     left=source_canonical();right=canonical_scan(value['metadata'])
     comparison=canonical_equal(left,right,[target])
     report=json.loads((Path(value['work'])/'verification-COMMITTED.json').read_text())
     if not report['full_multiset_equal'] or not report['file_sha256']:raise AssertionError("missing worker full remote verification")
     return {"full_source_multiset_equal":True,"source_metadata":base.load('source-pinned')['metadata'],"destination_metadata":value['metadata'],
-        "rows":base.load('source-pinned')['stats']['rows'],"comparison":comparison,"warehouse_contract":base.warehouse_contract(value['metadata']),"worker_verification":report}
+        "rows":base.load('source-pinned')['stats']['rows'],"comparison":comparison,"lakehouse_contract":base.lakehouse_contract(value['metadata']),"worker_verification":report}
 
 
 def sample_query():

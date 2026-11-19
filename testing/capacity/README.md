@@ -1,20 +1,16 @@
 # Representative full-day archival capacity
 
-This clones one real historical day, read-only, into a fresh private Influx fixture, then runs the archiver through publication, remote verification, routing, reverification, and confirmed deletion. Each run gets a new UUID directory and a new managed Pelican prefix. The original warehouse and demo stack stay unchanged.
+This clones one real historical day, read-only, into a fresh private Influx fixture, then runs the archiver through publication, remote verification, routing, reverification, and confirmed deletion. Each run gets a new UUID directory and a new managed Pelican prefix. The original lakehouse and demo stack stay unchanged.
 
-From the workspace root, on a host with Docker:
+From the workspace root, on a host with Docker, select an existing audited source lakehouse explicitly. Replace the URL below with its actual location; there is no default historical source and no automatic relocation of old data.
 
-```sh
-python3 beehive-hot-to-cold-loader/testing/capacity/run.py
+```fish
+set -gx CAPACITY_SOURCE 'https://<host>/sage/cold-test-<audited-source>/lakehouse'
+python3 beehive-hot-to-cold-loader/testing/capacity/run.py \
+  --source-lakehouse "$CAPACITY_SOURCE"
 ```
 
-The default source is March 1, 2025 in the adopted warehouse:
-
-```text
-https://nrdstor.nationalresearchplatform.org:8443/sage/cold-storage-demo-v3-bounded-full-1793018629285065000/warehouse
-```
-
-That day was audited at 140,578,674 rows. The harness measures the selected snapshot and requires that total for the default source and day. `--expected-rows` supplies another audited baseline. `--source-warehouse` and `--day YYYY-MM-DD` select another complete historical day. The source snapshot URL is pinned before extraction, and the source credentials are read-only. This path does not generate a synthetic 140-million-row day, and it does not start RabbitMQ or the loader. Those integrations are covered by the live gate.
+The source must end in `/lakehouse`. The production-shaped `/sage/cold/lakehouse` root is also accepted read-only. `--day YYYY-MM-DD` selects the complete historical day (default March 1, 2025). Supply `--expected-rows` with that source/day's audited row count to enforce an additional known baseline. No row count is inferred from an old URL. The source snapshot URL is pinned before extraction, and source credentials are read-only. Full source/fixture multiset checks remain mandatory. This path does not generate a synthetic 140-million-row day and does not start RabbitMQ or the loader; those integrations are covered by the live gate.
 
 The issuer key, DuckDB 2.0 Linux CLI, and origin default to the same paths as the live gate. Override them with `--pelican-key`, `--duckdb`, and `--origin`. Docker needs the base images and their dependencies.
 
@@ -24,6 +20,7 @@ Pass `--run-dir` as a new directory on a filesystem with enough free space:
 
 ```sh
 python3 beehive-hot-to-cold-loader/testing/capacity/run.py \
+  --source-lakehouse "$CAPACITY_SOURCE" \
   --run-dir /path/to/large-volume/sage-full-day-20250301-unique
 ```
 
@@ -31,7 +28,7 @@ The default is a fresh UUID directory under `beehive-hot-to-cold-loader/state`. 
 
 Before seeding, admission requires the maximum of 64 GiB, `--min-free-gib` (default 32), and 32 copies of the extracted reference Parquet plus 32 GiB. This is a heuristic. `reports/source-pinned.json` records the row count, primitive Parquet size, estimate, and free space. A failure stops import, archive, and deletion. Extraction may already have written its private reference and destination marker. Native probe commands keep an 8 GiB free reserve and cap DuckDB spill at 16 GiB, or at free space minus that reserve when that amount is smaller.
 
-The pinned-source comparison follows the worker: compressed canonical staging, local refinement by further hash bits until each exact comparison has at most one million rows per side, and `EXCEPT ALL` in both directions on complete records, including duplicate multiplicity. Hashes route records. A partition that is still over the cap after 64 hash bits fails closed. The result records the leaf partition count and row cap. The published warehouse layout is unchanged.
+The pinned-source comparison follows the worker: compressed canonical staging, local refinement by further hash bits until each exact comparison has at most one million rows per side, and `EXCEPT ALL` in both directions on complete records, including duplicate multiplicity. Hashes route records. A partition that is still over the cap after 64 hash bits fails closed. The result records the leaf partition count and row cap. The published lakehouse layout is unchanged.
 
 Run the native comparison, lifecycle, and matching-engine gates in the [validation guide](../../docs/validation.md#bounded-exact-verification-and-disk-guards) before another full-day import. If deleted files are still held open, recover that space before starting. This runner does not restart unrelated services or remove old runs.
 
@@ -57,12 +54,13 @@ After the API starts, the runner waits up to 240 seconds for `/metrics`, polling
 
 1. Create the private fixture services and check the destination origin, using the same marker placement and image binary path as the live gate.
 2. Read the source hint once and pin the immutable metadata URL. Native DuckDB 2.0 scans the chosen day into primitive staging Parquet, preserving integer nanoseconds, name, the complete canonical tags, scalar kind, the original native VARIANT kind, and the JSON value. An unsupported scalar kind fails.
-3. Stream Arrow and Parquet batches into lossless line protocol while a seeding permit is held and archival is disabled. Batches are at most 10,000 rows and 4 MiB. Writes go to the new fixture's Influx API at nanosecond precision. This is source preparation. No scalar is coerced, no tag is dropped, no timestamp is rounded, and no record is omitted. Unrepresentable values fail. Literal LF is preserved inside quoted string fields, matching the [InfluxDB 2.7.7 parser](https://github.com/influxdata/influxdb/blob/v2.7.7/models/points.go). A literal backslash followed by `n` stays distinct. Newlines in identifiers, and CR or NUL in string fields, are rejected. Empty tags, invalid names, oversized points, and non-finite values also fail. A failed import can leave partial data in its private fixture. The source warehouse is unchanged, and archival stays disabled.
+3. Stream Arrow and Parquet batches into lossless line protocol while a seeding permit is held and archival is disabled. Batches are at most 10,000 rows and 4 MiB. Writes go to the new fixture's Influx API at nanosecond precision. This is source preparation. No scalar is coerced, no tag is dropped, no timestamp is rounded, and no record is omitted. Unrepresentable values fail. Literal LF is preserved inside quoted string fields, matching the [InfluxDB 2.7.7 parser](https://github.com/influxdata/influxdb/blob/v2.7.7/models/points.go). A literal backslash followed by `n` stays distinct. Newlines in identifiers, and CR or NUL in string fields, are rejected. Empty tags, invalid names, oversized points, and non-finite values also fail. A failed import can leave partial data in its private fixture. The source lakehouse is unchanged, and archival stays disabled.
 
    Before any historical scan, a seven-row `strings` gate writes gzip-compressed batches to a separate private fixture bucket and reads annotated CSV back. It checks leading, trailing, and repeated LF, quotes and backslashes, a literal backslash-n, line-protocol-looking text after a newline, the row count, and exact nanoseconds. That bucket stays with the fixture for inspection and is outside the archival source. Run only this check before another full-day attempt:
 
    ```sh
    python3 beehive-hot-to-cold-loader/testing/capacity/run.py \
+     --source-lakehouse "$CAPACITY_SOURCE" \
      --strings-only --run-dir /path/to/new-isolated-string-check
    ```
 
@@ -74,7 +72,7 @@ After the API starts, the runner waits up to 240 seconds for `/metrics`, polling
 8. Enable deletion only for this fixture, with its writers and readers coordinated. The archiver reverifies the original remote object hashes and the full multiset immediately before deleting. Confirm zero rows on the target day and the one retained next-day sentinel. Repeat the bounded API and client checks.
 9. Require the stage profiles, kernel resource peaks, and full verification evidence. Ordinary completed-job cleanup then removes the large raw, query, normalized, and packed staging files. The source reference, JSON evidence, and step profiles remain.
 
-Source extraction, seeding, the extra pinned-source comparison, and the bounded API probes have their own timings and resource records. They are outside worker-stage throughput. `archive_to_routed_seconds` includes startup and schema initialization for this warehouse's first day. Exact step timings exclude that startup. The result is this fresh lifecycle, not a warm backlog rate or a broker ingest rate.
+Source extraction, seeding, the extra pinned-source comparison, and the bounded API probes have their own timings and resource records. They are outside worker-stage throughput. `archive_to_routed_seconds` includes startup and schema initialization for this lakehouse's first day. Exact step timings exclude that startup. The result is this fresh lifecycle, not a warm backlog rate or a broker ingest rate.
 
 ## Results
 
@@ -113,7 +111,7 @@ Accepted full-day measurements, including the successive dictionary, reconciliat
 ## Preparation and stop
 
 ```sh
-python3 beehive-hot-to-cold-loader/testing/capacity/run.py --prepare-only
+python3 beehive-hot-to-cold-loader/testing/capacity/run.py --prepare-only --source-lakehouse "$CAPACITY_SOURCE"
 python3 beehive-hot-to-cold-loader/testing/capacity/run.py --prepared /absolute/path/to/prepared-directory
 python3 beehive-hot-to-cold-loader/testing/capacity/run.py --stop /absolute/path/to/run-directory
 ```

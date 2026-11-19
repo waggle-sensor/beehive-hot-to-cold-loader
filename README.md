@@ -1,20 +1,23 @@
 # Beehive hot-to-cold loader
 
-Beehive's archival service moves completed UTC days from InfluxDB into an Iceberg v3 warehouse on [Pelican](https://docs.pelicanplatform.org/about-pelican). It verifies the published data before routing queries to cold storage, then deletes the verified hot interval when deletion is enabled and older readers have drained.
+[![.github/workflows/ci-cd-pipeline.yaml](https://github.com/waggle-sensor/beehive-hot-to-cold-loader/actions/workflows/ci-cd-pipeline.yaml/badge.svg?event=release)](https://github.com/waggle-sensor/beehive-hot-to-cold-loader/actions/workflows/ci-cd-pipeline.yaml)
+
+Beehive's archival service moves completed UTC days from InfluxDB into an Iceberg v3 lakehouse on [Pelican](https://docs.pelicanplatform.org/about-pelican). It verifies the published data before routing queries to cold storage, then deletes the verified hot interval when deletion is enabled and older readers have drained.
 
 The service coordinates with [beehive-influxdb-loader](https://github.com/waggle-sensor/beehive-influxdb-loader) for writer fencing and late measurements, and with
 [beehive-data-api](https://github.com/waggle-sensor/beehive-data-api/blob/main/docs/README.md) for pinned read views. A Go scheduler and SQLite journal manage recoverable jobs; no external queue is required. Hot retention defaults to 30 days and is configurable.
 
-## Documentation
+## Documentation 
 
 | Guide | Read this for |
 | --- | --- |
-| [Service overview and architecture](docs/architecture.md) | Lifecycle, late data, read routing, verification, and warehouse layout |
+| [Service overview and architecture](docs/architecture.md) | Lifecycle, late data, read routing, verification, and lakehouse layout |
 | [Configuration](docs/configuration.md) | Flags, environment variables, defaults, and integration settings |
 | [Deployment](docs/deployment.md) | Coordinated rollout, bootstrap, and enabling deletion |
 | [Operations and recovery](docs/operations.md) | Status, reader leases, stopped writers, cleanup, and troubleshooting |
 | [Metrics and Grafana](docs/metrics.md) | Public Prometheus endpoint, dashboard, alerts, and JSON profile retention |
 | [Developer guide](docs/development.md) | Package responsibilities, local checks, and change invariants |
+| [CI/CD](docs/ci-cd.md) | GitHub Actions validation jobs and image publish rules |
 | [Validation and performance](docs/validation.md) | Native gates, accepted policies, and benchmark methodology |
 | [Testing tools](testing/README.md) | Isolated live and retained-artifact harnesses |
 
@@ -49,7 +52,7 @@ After every writer for the selected bucket participates in coordination:
 ```sh
 ./bin/beehive-hot-to-cold-loader \
   --state /var/lib/beehive-hot-to-cold-loader \
-  --warehouse 'https://<host>/sage/cold-storage-archive-<unique>/warehouse' \
+  --lakehouse 'https://<host>/sage/cold/lakehouse' \
   --archive-start 2025-03-01 --archive-before 2025-03-02 \
   --influx-url http://influxdb:8086 \
   --org waggle --bucket waggle --bucket-id '<source bucket ID>' \
@@ -59,7 +62,13 @@ After every writer for the selected bucket participates in coordination:
 
 This bounds new archive scheduling to March 1; it does not disable recovery or late corrections. Choose coverage dates matching the source history. Use `--coordinate-only` during writer migration. Follow the [deployment guide](docs/deployment.md) before enabling archival or deletion against a real bucket.
 
-**Deletion is off by default.** Enabling it requires `--delete-enabled` and `--readers-coordinated` alongside coordinated writers. Keep Influx bucket retention unlimited so unverified age-based expiration cannot bypass the service. Use one active instance and one persistent state/catalog per warehouse. Never use `/node-data` or an existing demo warehouse as the writable destination.
+The table defaults to `sage.observations`, stored beneath
+`<lakehouse>/sage/observations/`. Configure `COLD_NAMESPACE` and
+`COLD_TABLE_NAME` (or `--namespace` and `--table-name`) to select another
+table, and configure the API with the same values. See
+[configuration](docs/configuration.md#listener-and-persistent-identity).
+
+**Deletion is off by default.** Enabling it requires `--delete-enabled` and `--readers-coordinated` alongside coordinated writers. Keep Influx bucket retention unlimited so unverified age-based expiration cannot bypass the service. Use one active instance and one persistent state/catalog per lakehouse. Never use `/node-data` or an existing demo lakehouse as the writable destination.
 
 ## Monitor
 
@@ -77,3 +86,7 @@ The [Grafana dashboard](observability/grafana/beehive-hot-to-cold-loader.json) c
 ## Research history
 
 This service was promoted from `sage-data-rework/archive-exporter`. Additional Design decisions and measured results remain in [plan 12](https://github.com/seanshahkarami/sage-data-rework/blob/main/plans/12_dynamic_archival_service.md). Historical saved runs retain their original locations; new service runs use this repository's state directory. See [validation tooling](testing/README.md) for workspace dependencies and fixture preparation.
+
+Online state backup and fail-closed disaster recovery are documented in
+[backup and recovery](docs/backup-recovery.md). The scheduled CronJob remains
+suspended until the isolated `testing/live/run.py --backup` drill passes.

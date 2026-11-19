@@ -67,6 +67,31 @@ def tree_hash(root):
     return digest.hexdigest()
 
 
+def image_ref(value):
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,200}@sha256:[a-f0-9]{64}", value):
+        raise ValueError("pinned image must be name@sha256:<64 hex>")
+    return value
+
+
+def pin_application_images(path):
+    # The copied compose is private to this run. Removing build blocks keeps
+    # compose from replacing the pinned digests with a workspace build.
+    text = path.read_text()
+    replacements = (
+        ("  archiver:\n    build:\n      context: ${ARCHIVER_SOURCE:?}\n",
+         "  archiver:\n    image: ${ARCHIVER_IMAGE:?}\n    platform: linux/amd64\n    pull_policy: never\n"),
+        ("  loader:\n    build:\n      context: ${LIVE_ROOT:?}/loader-build\n",
+         "  loader:\n    image: ${LOADER_IMAGE:?}\n    platform: linux/amd64\n    pull_policy: never\n"),
+        ("  api:\n    build:\n      context: ${API_SOURCE:?}\n",
+         "  api:\n    image: ${API_IMAGE:?}\n    platform: linux/amd64\n    pull_policy: never\n"),
+    )
+    for old, new in replacements:
+        if old not in text:
+            raise ValueError("live compose has no replaceable build block")
+        text = text.replace(old, new, 1)
+    path.write_text(text)
+
+
 def prepare(args):
     key = local(args.pelican_key)
     duck = local(args.duckdb)
@@ -75,10 +100,10 @@ def prepare(args):
     run_id = uuid.uuid4().hex
     root = local(args.run_dir or ARCHIVER / "state" / ("live-" + run_id))
     root.mkdir(mode=0o700, parents=True, exist_ok=False)
-    for name in ("influx", "coordinator", "reports"):
+    for name in ("influx", "coordinator", "reports", "backup-scratch"):
         (root / name).mkdir(mode=0o700)
     # Curated snapshots exclude .git, datasets, state, caches and signing keys.
-    copy_source(ARCHIVER, root / "archiver-build", ["go.mod", "go.sum", "main.go", "internal", "Dockerfile"])
+    copy_source(ARCHIVER, root / "archiver-build", ["go.mod", "go.sum", "main.go", "cmd", "internal", "Dockerfile"])
     copy_source(WORKSPACE / "beehive-data-api", root / "api-build", ["go.mod", "go.sum", "main.go", "internal", "Dockerfile"])
     copy_source(WORKSPACE / "beehive-influxdb-loader", root / "loader-build", ["requirements.txt", "main.py", "archive.py"])
     shutil.copy2(HERE / "Dockerfile.loader", root / "loader-build/Dockerfile")
@@ -88,18 +113,32 @@ def prepare(args):
                          (WORKSPACE / "beehive-influxdb-loader/requirements.txt", "requirements.txt"), (duck, "duckdb")):
         shutil.copy2(source, root / "probe-build" / name)
     shutil.copy2(HERE / "compose.yml", root / "compose.yml")
+    images = {}
+    supplied = (args.archiver_image, args.api_image, args.loader_image)
+    if any(supplied):
+        if not all(supplied):
+            raise ValueError("pin the archiver, API, and loader images together")
+        images = {"archiver": image_ref(args.archiver_image), "api": image_ref(args.api_image), "loader": image_ref(args.loader_image)}
+        pin_application_images(root / "compose.yml")
     origin = origin_url(args.origin)
     config = {"RUN_ID": run_id, "LIVE_ROOT": str(root), "PELICAN_KEY": str(key),
-              "WAREHOUSE": origin + "/cold-storage-archive-live-" + run_id + "/warehouse",
+              "COLD_NAMESPACE": os.environ.get("COLD_NAMESPACE", "sage"),
+              "COLD_TABLE_NAME": os.environ.get("COLD_TABLE_NAME", "observations"),
+              "LAKEHOUSE": origin + "/cold-test-" + run_id + "/lakehouse",
               "ARCHIVER_SOURCE": str(root / "archiver-build"), "API_SOURCE": str(root / "api-build"),
-              "COORDINATE_ONLY": "true", "DELETE_ENABLED": "false"}
+              "ARCHIVER_IMAGE": images.get("archiver", ""), "API_IMAGE": images.get("api", ""),
+              "LOADER_IMAGE": images.get("loader", ""),
+              "COORDINATE_ONLY": "true", "DELETE_ENABLED": "false",
+              "BACKUP_SCRATCH": "/backups" if getattr(args,"backup",False) else "",
+              "LOADER_RESTART_POLICY": "on-failure" if getattr(args,"backup",False) else "no"}
     for name in ("LOADER_TOKEN", "READER_TOKEN", "ADMIN_TOKEN", "INFLUX_TOKEN", "INFLUX_PASSWORD", "BROKER_PASSWORD"):
         config[name] = secrets.token_hex(32)
     save(root / "private-config.json", config)
-    manifest = {"project": "sage-archive-live-" + run_id, "warehouse": config["WAREHOUSE"],
+    manifest = {"project": "sage-archive-live-" + run_id, "lakehouse": config["LAKEHOUSE"],
                 "origin": origin, "run_id": run_id, "phase": "prepared", "passed": False,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "execution_policy":{"normalization_threads":16,"normalization_merge_fan_in":16,"normalization_merge_concurrency":1,"comparison_threads":16,"build_threads":16,"build_sort_threads":2,"canonical_reuse":True,"build_canonicalization":"tag_dictionary","reconciliation_canonicalization":"raw_tag_dictionary","verification_canonicalization":"local_dictionary","partitioning":"fixed"},
+                "images": images, "backup_drill": bool(getattr(args,"backup",False)),
                 "source_sha256":{name:tree_hash(root/name) for name in ("archiver-build","api-build","loader-build","probe-build")}}
     save(root / "run.json", manifest)
     return root
@@ -113,8 +152,8 @@ class Run:
         run_id = self.config["RUN_ID"]
         if not re.fullmatch("[a-f0-9]{32}", run_id):
             raise ValueError("invalid isolated run ID")
-        expected = origin_url(self.manifest["origin"]) + "/cold-storage-archive-live-" + run_id + "/warehouse"
-        if (self.config["WAREHOUSE"] != expected or self.manifest["warehouse"] != expected
+        expected = origin_url(self.manifest["origin"]) + "/cold-test-" + run_id + "/lakehouse"
+        if (self.config["LAKEHOUSE"] != expected or self.manifest["lakehouse"] != expected
                 or self.manifest["project"] != "sage-archive-live-" + run_id
                 or self.config["LIVE_ROOT"] != str(self.root)):
             raise ValueError("run identity/prefix mismatch")
@@ -140,6 +179,37 @@ class Run:
         self.compose("up", "-d", "--no-deps", "--force-recreate", "archiver")
         self.compose("run", "--rm", "--no-deps", "probe", "ready")
 
+    def restore_drill(self):
+        """Only this generated fixture's state is moved; original copies are retained."""
+        self.phase("backup-restore-drill")
+        self.compose("stop", "loader", "api", "archiver")
+        def recover(report, label, expect_blocked):
+            current = self.root / "coordinator"
+            current.rename(self.root / ("coordinator-before-" + label))
+            current.mkdir(mode=0o700)
+            status = json.loads((self.root / "reports" / (report + ".json")).read_text())["backup"]
+            bundle = "/backups/" + label + ".tar.gz"
+            prefix = ["run", "--rm", "--no-deps", "archiver", "state-backup"]
+            self.compose(*prefix, "download", "--lakehouse=" + self.config["LAKEHOUSE"],
+                         "--state=/state", "--identity=" + status["identity"], "--id=" + status["id"], "--bundle=" + bundle)
+            self.compose(*prefix, "restore", "--state=/state", "--bundle=" + bundle, "--confirm-clients-stopped")
+            command = self.command + prefix + ["approve", "--lakehouse=" + self.config["LAKEHOUSE"], "--state=/state",
+                                              "--confirm-clients-stopped", "--accept-post-backup-data-loss"]
+            approved = subprocess.run(command, env={**os.environ, **self.config}, capture_output=True, text=True)
+            if expect_blocked:
+                if (approved.returncode == 0 or not (current / "restore-pending.json").exists()
+                        or "remote publication advanced or changed" not in approved.stderr):
+                    raise AssertionError("stale restore did not fail for the expected publication conflict")
+                save(self.root / "reports/stale-restore.json", {"passed":True,"activation_blocked":True,
+                                                               "reason":"remote publication advanced or changed"})
+            elif approved.returncode:
+                raise RuntimeError("latest restore approval failed; inspect isolated fixture state")
+        recover("online-backup-old", "stale", True)
+        recover("online-backup", "latest", False)
+        self.archiver(coordinate=False, deletion=False)
+        self.compose("up", "-d", "--no-deps", "api", "loader")
+        self.probe("backup-restored")
+
     def execute(self):
         if self.manifest["phase"] != "prepared":
             raise ValueError("only a prepared, never-started run can execute; use a fresh run after failure")
@@ -147,9 +217,21 @@ class Run:
         subprocess.run(["docker", "info", "--format", "{{.OSType}}/{{.Architecture}}"], check=True)
         started = False
         try:
-            self.phase("building")
+            images = self.manifest.get("images") or {}
+            self.phase("pulling" if images else "building")
             self.compose("config", "--quiet")
-            self.compose("build", "archiver", "api", "loader", "probe")
+            if images:
+                for ref in images.values():
+                    subprocess.run(["docker", "pull", "--platform", "linux/amd64", ref], check=True)
+                    inspected = subprocess.run(["docker", "image", "inspect", ref, "--format", "{{.Os}}/{{.Architecture}}"],
+                                               check=True, capture_output=True, text=True)
+                    if inspected.stdout.strip() != "linux/amd64":
+                        raise ValueError("pinned image is not linux/amd64")
+                self.manifest["image_architecture"] = "linux/amd64"
+                save(self.root / "run.json", self.manifest)
+                self.compose("build", "probe")
+            else:
+                self.compose("build", "archiver", "api", "loader", "probe")
             started = True
             self.compose("up", "-d", "--wait", "influx", "broker")
             self.probe("bootstrap")
@@ -166,15 +248,21 @@ class Run:
             self.probe("recover-and-release")
             self.probe("archive-and-pin")
             self.probe("fenced-late-published")
+            if self.manifest.get("backup_drill"):
+                self.probe("online-backup-old")
             self.compose("stop", "loader")
             self.probe("publish-redelivery")
             self.compose("up", "-d", "--no-deps", "loader")
             self.probe("late-corrected")
+            if self.manifest.get("backup_drill"):
+                self.probe("online-backup")
             # Only this private bucket/stack participates; all its readers/writers
             # are coordinated. The held old hot read must prevent deletion.
             self.archiver(coordinate=False, deletion=True)
             self.probe("deletion-blocked")
             self.probe("release-and-finish")
+            if self.manifest.get("backup_drill"):
+                self.restore_drill()
             self.manifest["passed"] = True
             self.phase("complete")
         except BaseException as error:
@@ -197,6 +285,7 @@ class Run:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--backup", action="store_true", help="include online backup and stale/latest restore drills on this isolated fixture")
     parser.add_argument("--prepare-only", action="store_true", help="snapshot sources/configuration without Docker or network IO")
     parser.add_argument("--prepared", type=Path, help="execute an existing never-started prepared run")
     parser.add_argument("--stop", type=Path, help="stop only the recorded isolated project")
@@ -204,6 +293,9 @@ def main():
     parser.add_argument("--origin", default="https://nrdstor.nationalresearchplatform.org:8443/sage")
     parser.add_argument("--pelican-key", type=Path, default=WORKSPACE / "honeyhouse-config/applications/waggle-access/pelican/issuer-key.pem")
     parser.add_argument("--duckdb", type=Path, default=ARCHIVER / "bin/duckdb")
+    parser.add_argument("--archiver-image", help="pinned archiver image, name@sha256:<digest>; requires the API and loader pins")
+    parser.add_argument("--api-image", help="pinned API image, name@sha256:<digest>")
+    parser.add_argument("--loader-image", help="pinned loader image, name@sha256:<digest>")
     args = parser.parse_args()
     if args.stop:
         Run(args.stop).compose("stop")

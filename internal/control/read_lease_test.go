@@ -60,7 +60,7 @@ func TestReadLeaseDurationAndGrace(t *testing.T) {
 func TestReadLeaseDurationMigrationAndRestart(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "control.db")
 	open := func(ttl time.Duration) *Store {
-		s, err := Open(path, "waggle", "warehouse", "2025-03-01", ttl)
+		s, err := Open(path, "waggle", "lakehouse", "2025-03-01", ttl)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -97,7 +97,7 @@ func TestReadLeaseDurationMigrationAndRestart(t *testing.T) {
 
 func TestInvalidReadLeaseDuration(t *testing.T) {
 	for _, ttl := range []time.Duration{0, -time.Second, 25 * time.Hour} {
-		if s, err := Open(filepath.Join(t.TempDir(), "control.db"), "waggle", "warehouse", "2025-03-01", ttl); err == nil {
+		if s, err := Open(filepath.Join(t.TempDir(), "control.db"), "waggle", "lakehouse", "2025-03-01", ttl); err == nil {
 			s.Close()
 			t.Fatalf("invalid lease duration accepted: %s", ttl)
 		}

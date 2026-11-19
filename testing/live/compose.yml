@@ -37,7 +37,7 @@ services:
       context: ${ARCHIVER_SOURCE:?}
     command:
       - --state=/state
-      - --warehouse=${WAREHOUSE:?}
+      - --lakehouse=${LAKEHOUSE:?}
       - --archive-start=2025-03-01
       - --archive-before=2025-03-02
       - --influx-url=http://influx:8086
@@ -57,11 +57,17 @@ services:
       - --keep-staging=true
     environment:
       HOT_TO_COLD_LOADER_TOKEN: ${LOADER_TOKEN:?}
+      COLD_NAMESPACE: ${COLD_NAMESPACE:-sage}
+      COLD_TABLE_NAME: ${COLD_TABLE_NAME:-observations}
       HOT_TO_COLD_READER_TOKEN: ${READER_TOKEN:?}
       HOT_TO_COLD_ADMIN_TOKEN: ${ADMIN_TOKEN:?}
       INFLUX_TOKEN: ${INFLUX_TOKEN:?}
       PELICAN_KEY_PATH: /secrets/issuer-key.pem
+      INFLUX_BUCKET_ID: ${BUCKET_ID:-not-yet-discovered}
+      HOT_TO_COLD_BACKUP_SCRATCH: ${BACKUP_SCRATCH:-}
+      HOT_TO_COLD_BACKUP_IMAGE: ${ARCHIVER_IMAGE:-workspace-build}
     volumes:
+      - ${LIVE_ROOT:?}/backup-scratch:/backups
       - ${LIVE_ROOT:?}/coordinator:/state
       - ${LIVE_ROOT:?}/influx:/influx:ro
       - ${PELICAN_KEY:?}:/secrets/issuer-key.pem:ro
@@ -70,6 +76,7 @@ services:
   loader:
     build:
       context: ${LIVE_ROOT:?}/loader-build
+    restart: "${LOADER_RESTART_POLICY:-no}"
     environment:
       RABBITMQ_HOST: broker
       RABBITMQ_USERNAME: node-n1
@@ -95,7 +102,9 @@ services:
       INFLUXDB_TOKEN: ${INFLUX_TOKEN:?}
       INFLUXDB_BUCKET: waggle
       COLD_FRONTIER: dynamic
-      COLD_WAREHOUSE: ${WAREHOUSE:?}
+      COLD_LAKEHOUSE: ${LAKEHOUSE:?}
+      COLD_NAMESPACE: ${COLD_NAMESPACE:-sage}
+      COLD_TABLE_NAME: ${COLD_TABLE_NAME:-observations}
       HOT_TO_COLD_LOADER_URL: http://archiver:10001
       HOT_TO_COLD_LOADER_READER_TOKEN: ${READER_TOKEN:?}
       HOT_TO_COLD_LOADER_READER_OWNER: ${RUN_ID:?}-api
@@ -109,7 +118,9 @@ services:
       context: ${LIVE_ROOT:?}/probe-build
     environment:
       RUN_ID: ${RUN_ID:?}
-      WAREHOUSE: ${WAREHOUSE:?}
+      LAKEHOUSE: ${LAKEHOUSE:?}
+      COLD_NAMESPACE: ${COLD_NAMESPACE:-sage}
+      COLD_TABLE_NAME: ${COLD_TABLE_NAME:-observations}
       INFLUX_TOKEN: ${INFLUX_TOKEN:?}
       BROKER_PASSWORD: ${BROKER_PASSWORD:?}
       LOADER_TOKEN: ${LOADER_TOKEN:?}

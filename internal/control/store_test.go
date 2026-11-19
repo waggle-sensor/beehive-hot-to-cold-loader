@@ -12,7 +12,7 @@ import (
 
 func testStore(t *testing.T) *Store {
 	t.Helper()
-	s, e := Open(filepath.Join(t.TempDir(), "control.db"), "waggle", "https://test/sage/cold-storage-archive-test/warehouse", "2025-03-01")
+	s, e := Open(filepath.Join(t.TempDir(), "control.db"), "waggle", "https://test/sage/cold-test-test/lakehouse", "2025-03-01")
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -144,14 +144,14 @@ func TestInboxRequiresFencedDayAndTypedValues(t *testing.T) {
 
 func TestDurabilityAcrossOpen(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "control.db")
-	s, e := Open(path, "waggle", "warehouse", "2025-03-01")
+	s, e := Open(path, "waggle", "lakehouse", "2025-03-01")
 	if e != nil {
 		t.Fatal(e)
 	}
 	s.Permit("a", "pod", []string{"2025-03-01"})
 	s.Next(now(), 720*time.Hour)
 	s.Close()
-	s, e = Open(path, "waggle", "warehouse", "2025-03-01")
+	s, e = Open(path, "waggle", "lakehouse", "2025-03-01")
 	if e != nil {
 		t.Fatal(e)
 	}
