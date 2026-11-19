@@ -94,12 +94,12 @@ groups:
           summary: 'No verified state backup within 36 hours on {{ $labels.instance }}'
           description: 'A zero success timestamp means no verified backup. Confirm the private destination and qualified CronJob are enabled.'
       - alert: ArchiveBackupBarrierOverdue
-        expr: hot_to_cold_backup_barrier_age_seconds{job="beehive-hot-to-cold-loader"} > 600
+        expr: hot_to_cold_backup_barrier_age_seconds{job="beehive-hot-to-cold-loader"} > 3600
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: 'Backup write-admission barrier exceeded ten minutes on {{ $labels.instance }}'
+          summary: 'Backup write-admission barrier exceeded one hour on {{ $labels.instance }}'
           description: 'Reads should remain available. Investigate capture cancellation and disk IO; do not revoke uncertain writer permits.'
       - alert: ArchiveBackupRetentionFailed
         expr: increase(hot_to_cold_backup_retention_failures_total{job="beehive-hot-to-cold-loader"}[1h]) > 0
