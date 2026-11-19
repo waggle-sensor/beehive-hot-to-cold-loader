@@ -1,7 +1,8 @@
 // assets_test.go checks that the dashboard and alert rules name only metrics
 // this process can publish, plus the read-renewal series scraped from the API.
-// Loader panel queries stay scoped to the ServiceMonitor job and the instance
-// variable. API renewal panels keep their own job and instance variables.
+// Loader panels pin the ServiceMonitor job and either keep instance=~"$instance"
+// (process panels) or aggregate instance away for the singleton workload.
+// API renewal panels keep their own job and instance variables.
 
 package observability_test
 
@@ -91,7 +92,7 @@ func TestDashboardAndRuleMetricsExist(t *testing.T) {
 	if err = json.Unmarshal(read("grafana/beehive-hot-to-cold-loader.json"), &dashboard); err != nil {
 		t.Fatal(err)
 	}
-	if dashboard.UID != "beehive-hot-to-cold-loader" || dashboard.Schema != 38 {
+	if dashboard.UID != "beehive-hot-to-cold-loader" || dashboard.Schema != 42 {
 		t.Fatal("unstable dashboard identity/schema")
 	}
 	ids := map[int]bool{}
@@ -108,11 +109,26 @@ func TestDashboardAndRuleMetricsExist(t *testing.T) {
 		}
 		for _, target := range panel.Targets {
 			check(target.Expr)
-			job, instance := `job="beehive-hot-to-cold-loader"`, `instance=~"$instance"`
-			if strings.Contains(target.Expr, "$api_job") {
-				job, instance = `job=~"$api_job"`, `instance=~"$api_instance"`
+			// Node-graph edges are static vector(1) labels, not scraped series.
+			if strings.Contains(target.Expr, "vector(1)") && !metricNames.MatchString(target.Expr) {
+				continue
 			}
-			if !strings.Contains(target.Expr, job) || !strings.Contains(target.Expr, instance) {
+			if strings.Contains(target.Expr, "$api_job") {
+				if !strings.Contains(target.Expr, `job=~"$api_job"`) || !strings.Contains(target.Expr, `instance=~"$api_instance"`) {
+					t.Error("query not scoped to selected targets", target.Expr)
+				}
+				continue
+			}
+			if !strings.Contains(target.Expr, `job="beehive-hot-to-cold-loader"`) {
+				t.Error("query not scoped to selected targets", target.Expr)
+				continue
+			}
+			hasInstance := strings.Contains(target.Expr, `instance=~"$instance"`)
+			dropsInstance := strings.Contains(target.Expr, "without(instance)") ||
+				strings.Contains(target.Expr, "without (instance)") ||
+				strings.Contains(target.Expr, " by(") ||
+				strings.Contains(target.Expr, " by (")
+			if !hasInstance && !dropsInstance {
 				t.Error("query not scoped to selected targets", target.Expr)
 			}
 		}
