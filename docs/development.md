@@ -61,7 +61,7 @@ Benchmark candidates against retained immutable inputs in new scratch directorie
 
 ## Coordination API
 
-All commands use POST with a JSON body containing the configured `bucket`, and `Authorization: Bearer <role-token>`. Bodies are limited to 16 MiB, require one JSON value, and reject unknown fields. Invalid input returns 400; store-level conflicts return 409. Successful command responses are JSON.
+Coordination commands use POST with `Authorization: Bearer <role-token>`. Write, late, quarantine, read, and status bodies must include the configured `bucket`. Backup create/status accept an empty object (`{}`) and do not require `bucket`. Bodies are limited to 16 MiB, require one JSON value, and reject unknown fields. Invalid input returns 400; store-level conflicts return 409. Successful command responses are JSON.
 
 | Route | Role | Main request fields / result |
 | --- | --- | --- |
@@ -74,6 +74,8 @@ All commands use POST with a JSON body containing the configured `bucket`, and `
 | `/v1/reads/renew` | Reader | `id`, `owner`; renews the same view |
 | `/v1/reads/release` | Reader | `id`; releases the view |
 | `/v1/status` | Admin | Returns aggregate control status |
+| `/v1/backups/create` | Admin | Empty body; returns `202` with operation `id` and `state=running`. Concurrent create returns 409; incomplete backup config returns 503 |
+| `/v1/backups/status` | Admin | Empty body; returns the latest backup operation fields (phase, timings, errors) |
 | `/metrics` (GET) | Public | Prometheus exposition; no JSON body or token |
 
 A late record has `time` (signed nanosecond epoch integer), `name`, `tags` (string map), `kind` (`float`, `int`, `uint`, `bool`, `string`), and `value` (text matching the kind). Nonfinite numeric values and empty tag keys/values are rejected. Use the maintained loader/API coordination clients rather than creating a second ingestion path that bypasses writer fencing.

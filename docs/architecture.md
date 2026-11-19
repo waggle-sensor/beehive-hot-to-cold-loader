@@ -21,6 +21,27 @@ flowchart LR
 
 The Influx loader never writes the cold lakehouse. It hands late measurements to this service durably. The API acquires a view containing coverage start, frontier, lakehouse, exact Iceberg metadata, generation, and lease expiry. The frontier is an exclusive border: earlier covered data is cold; data from the border onward is hot. Requests before declared coverage are rejected.
 
+## HTTP API
+
+The process listens on one internal address (default `:10001`). It does not serve measurement queries. Coordination and status routes are authenticated POST with a JSON body; `/metrics` is the only public GET. Loader, reader, and admin tokens are distinct: a token for one role cannot call another role's routes. Bodies are limited to 16 MiB, require one JSON value, and reject unknown fields. Write, late, quarantine, read, and status requests must include the configured `bucket`. Backup create/status accept `{}` and do not require `bucket`. Field-level request/response detail is in [development](development.md); backup admission and recovery behavior are in [backup and recovery](backup-recovery.md).
+
+| Method | Route | Role | Purpose |
+| --- | --- | --- | --- |
+| POST | `/v1/writes/acquire` | Loader | Admit a writer permit for hot days |
+| POST | `/v1/writes/renew` | Loader | Extend a live writer permit |
+| POST | `/v1/writes/release` | Loader | Confirm successful completion of a live permit |
+| POST | `/v1/late` | Loader | Durably accept late corrections for fenced/cold days |
+| POST | `/v1/quarantine` | Loader | Retain rejected input for investigation |
+| POST | `/v1/reads/acquire` | Reader | Pin a renewable cold/hot routing view |
+| POST | `/v1/reads/renew` | Reader | Renew the same pinned view |
+| POST | `/v1/reads/release` | Reader | Release a read view |
+| POST | `/v1/status` | Admin | Aggregate control status |
+| POST | `/v1/backups/create` | Admin | Start one online state backup (`202`); concurrent create returns 409; incomplete config returns 503 |
+| POST | `/v1/backups/status` | Admin | Latest backup operation fields |
+| GET | `/metrics` | Public | Prometheus exposition; no token |
+
+During backup capture, new write, late, and quarantine admission can return 503 with `Retry-After: 30`. Existing writer renewals/releases and all read routes stay available.
+
 ## Archive lifecycle
 
 Only complete UTC days ending at or before `now - hot retention` are eligible. The default is 720 hours (30 days), with up to another day of batching plus processing/backlog lag. Jobs advance oldest-first through durable stages.
