@@ -1666,7 +1666,7 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "fixedColor": "transparent",
+            "fixedColor": "green",
             "mode": "fixed"
           },
           "custom": {
@@ -1684,15 +1684,71 @@
           "mappings": [
             {
               "options": {
+                "match": "null",
+                "result": {
+                  "color": "gray",
+                  "index": 11,
+                  "text": "Unknown"
+                }
+              },
+              "type": "special"
+            },
+            {
+              "options": {
                 "0": {
                   "color": "transparent",
-                  "index": 1,
+                  "index": 0,
                   "text": "idle"
                 },
                 "1": {
+                  "color": "blue",
+                  "index": 1,
+                  "text": "FENCING"
+                },
+                "2": {
+                  "color": "light-blue",
+                  "index": 2,
+                  "text": "EXPORTING"
+                },
+                "3": {
+                  "color": "purple",
+                  "index": 3,
+                  "text": "EXPORTED"
+                },
+                "4": {
+                  "color": "dark-blue",
+                  "index": 4,
+                  "text": "RECONCILED"
+                },
+                "5": {
+                  "color": "yellow",
+                  "index": 5,
+                  "text": "BUILT"
+                },
+                "6": {
+                  "color": "orange",
+                  "index": 6,
+                  "text": "COMMITTED"
+                },
+                "7": {
+                  "color": "dark-orange",
+                  "index": 7,
+                  "text": "REMOTE_VERIFIED"
+                },
+                "8": {
                   "color": "green",
-                  "index": 0,
-                  "text": "running"
+                  "index": 8,
+                  "text": "ROUTED"
+                },
+                "9": {
+                  "color": "red",
+                  "index": 9,
+                  "text": "DELETING"
+                },
+                "10": {
+                  "color": "dark-red",
+                  "index": 10,
+                  "text": "DELETE_REQUESTED"
                 }
               },
               "type": "value"
@@ -1728,7 +1784,7 @@
         },
         "mergeValues": true,
         "rowHeight": 0.9,
-        "showValue": "never",
+        "showValue": "auto",
         "tooltip": {
           "hideZeros": false,
           "mode": "single",
@@ -1744,10 +1800,10 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\"})",
+          "expr": "sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"FENCING\"})) * 1 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"EXPORTING\"})) * 2 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"EXPORTED\"})) * 3 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"RECONCILED\"})) * 4 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"BUILT\"})) * 5 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"COMMITTED\"})) * 6 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"REMOTE_VERIFIED\"})) * 7 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"ROUTED\"})) * 8 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"DELETING\"})) * 9 + sum by (mode) (max without(instance) (hot_to_cold_step_in_progress{job=\"beehive-hot-to-cold-loader\",mode=~\"$mode\",stage=\"DELETE_REQUESTED\"})) * 10",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "{{mode}} {{stage}}",
+          "legendFormat": "{{mode}}",
           "range": true,
           "refId": "A"
         }
@@ -4984,6 +5040,6 @@
   "timezone": "browser",
   "title": "Beehive hot-to-cold loader",
   "uid": "beehive-hot-to-cold-loader",
-  "version": 23,
+  "version": 24,
   "weekStart": ""
 }
